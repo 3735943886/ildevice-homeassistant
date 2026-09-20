@@ -1,0 +1,206 @@
+{
+  "id": "harness",
+  "il": 0,
+  "kind": "dryer",
+  "label": "Dryer",
+  "model": "RH14_N_KR",
+  "props": {
+    "anti_crease": {
+      "type": "binary"
+    },
+    "available": {
+      "role": "available",
+      "type": "binary"
+    },
+    "child_lock": {
+      "category": "diagnostic",
+      "type": "binary"
+    },
+    "course": {
+      "label": "Course (dial)",
+      "options": [
+        "none",
+        "refresh",
+        "towels",
+        "jeans",
+        "bulky_items",
+        "easy_care",
+        "mixed_fabrics",
+        "cotton_normal",
+        "sportswear",
+        "quick_dry",
+        "delicates",
+        "wool",
+        "rack_dry",
+        "cool_air",
+        "warm_air",
+        "bedding_brush",
+        "allergy_care",
+        "power",
+        "condenser_care",
+        "tub_clean",
+        "padding_refresh",
+        "time_dry",
+        "water_repellent",
+        "baby_wear",
+        "small_load",
+        "cotton_plus",
+        "perm_press",
+        "pet_care"
+      ],
+      "type": "select"
+    },
+    "course_select": {
+      "label": "Course for Start",
+      "options": [
+        "towels",
+        "bulky_items",
+        "easy_care",
+        "cotton_normal",
+        "sportswear",
+        "quick_dry",
+        "wool",
+        "rack_dry",
+        "cool_air",
+        "warm_air",
+        "bedding_brush",
+        "allergy_care",
+        "power",
+        "condenser_care",
+        "tub_clean",
+        "padding_refresh",
+        "time_dry"
+      ],
+      "rw": true,
+      "type": "select"
+    },
+    "damp_dry_beep": {
+      "type": "binary"
+    },
+    "dry_level": {
+      "options": [
+        "none",
+        "damp_dry",
+        "less_dry",
+        "iron_dry",
+        "cupboard_dry",
+        "very_dry"
+      ],
+      "type": "select"
+    },
+    "eco_hybrid": {
+      "options": [
+        "none",
+        "eco",
+        "normal",
+        "turbo"
+      ],
+      "type": "select"
+    },
+    "energy": {
+      "class": "energy",
+      "label": "Cycle energy",
+      "series": "counter",
+      "type": "number",
+      "unit": "Wh"
+    },
+    "error": {
+      "category": "diagnostic",
+      "class": "problem",
+      "type": "binary"
+    },
+    "error_message": {
+      "category": "diagnostic",
+      "type": "text"
+    },
+    "hand_iron": {
+      "label": "Easy iron",
+      "type": "binary"
+    },
+    "initial_time": {
+      "category": "diagnostic",
+      "class": "duration",
+      "label": "Cycle length",
+      "type": "number",
+      "unit": "min"
+    },
+    "pause": {
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "power": {
+      "class": "running",
+      "label": "Powered on",
+      "type": "binary"
+    },
+    "power_off": {
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "process": {
+      "label": "Cycle step",
+      "options": [
+        "none",
+        "sensing",
+        "steam",
+        "drying_1",
+        "drying_2",
+        "drying_3",
+        "cooling",
+        "anti_crease",
+        "end"
+      ],
+      "type": "select"
+    },
+    "remaining_time": {
+      "class": "duration",
+      "type": "number",
+      "unit": "min"
+    },
+    "remote_start": {
+      "category": "diagnostic",
+      "label": "Remote start armed at the panel",
+      "type": "binary"
+    },
+    "reservation": {
+      "type": "binary"
+    },
+    "reserve_time": {
+      "class": "duration",
+      "label": "Reserved finish time",
+      "type": "number",
+      "unit": "min"
+    },
+    "self_clean": {
+      "label": "Condenser self-clean",
+      "type": "binary"
+    },
+    "start": {
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "status": {
+      "options": [
+        "off",
+        "initial",
+        "running",
+        "paused",
+        "complete",
+        "error",
+        "audible_diagnosis",
+        "reserved"
+      ],
+      "type": "select"
+    },
+    "steam": {
+      "type": "binary"
+    }
+  },
+  "source": "rusthinq",
+  "vendor": "LG",
+  "x-mqtt": {
+    "reject": "rusthinq/{id}/reject",
+    "set": "rusthinq/{id}/{prop}/set",
+    "state": "rusthinq/{id}/{prop}"
+  }
+}

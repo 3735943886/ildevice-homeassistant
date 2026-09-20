@@ -1,0 +1,310 @@
+{
+  "class": "washing_machine",
+  "id": "harness",
+  "il": 0,
+  "kind": "washer",
+  "label": "Washer",
+  "model": "F24VDD",
+  "props": {
+    "add_load": {
+      "label": "Add Garment available",
+      "type": "binary"
+    },
+    "alarm": {
+      "category": "diagnostic",
+      "label": "End-of-cycle sound",
+      "type": "binary"
+    },
+    "available": {
+      "role": "available",
+      "type": "binary"
+    },
+    "child_lock": {
+      "category": "diagnostic",
+      "type": "binary"
+    },
+    "course": {
+      "label": "Course (dial)",
+      "options": [
+        "none",
+        "steam_refresh",
+        "allergy_care",
+        "functional_wear",
+        "economy_boil",
+        "baby_wear",
+        "heavy_duty",
+        "cotton",
+        "speed_wash",
+        "quiet",
+        "colour_care",
+        "duvet",
+        "lingerie_wool",
+        "rinse_spin",
+        "downloaded_course",
+        "tub_clean"
+      ],
+      "type": "select"
+    },
+    "course_select": {
+      "label": "Course for Start",
+      "options": [
+        "steam_refresh",
+        "allergy_care",
+        "functional_wear",
+        "economy_boil",
+        "baby_wear",
+        "heavy_duty",
+        "cotton",
+        "speed_wash",
+        "quiet",
+        "colour_care",
+        "duvet",
+        "lingerie_wool",
+        "rinse_spin",
+        "tub_clean"
+      ],
+      "rw": true,
+      "type": "select"
+    },
+    "crease_care": {
+      "type": "binary"
+    },
+    "door_lock": {
+      "category": "diagnostic",
+      "type": "binary"
+    },
+    "download_course": {
+      "category": "diagnostic",
+      "label": "Downloaded course",
+      "options": [
+        "none",
+        "cold_wash",
+        "small_load",
+        "skin_care",
+        "rainy_day",
+        "sweat_stains",
+        "single_garments",
+        "kids_wear",
+        "shirts",
+        "school_uniform",
+        "static_reduce",
+        "colour_care",
+        "spin_only",
+        "air_wash",
+        "deodorisation",
+        "bedding_care",
+        "cloth_care",
+        "smart_rinse",
+        "eco_wash",
+        "double_rinse",
+        "heavy_duty",
+        "wash_dry",
+        "silent_wash",
+        "wrinkle_care",
+        "rinse_spin",
+        "baby_wear",
+        "sportswear",
+        "towels",
+        "shirts_1h",
+        "allergy_care",
+        "hygiene",
+        "speed_wash",
+        "pet_care",
+        "quick_tub_clean"
+      ],
+      "type": "select"
+    },
+    "energy": {
+      "class": "energy",
+      "label": "Cycle energy",
+      "series": "counter",
+      "type": "number",
+      "unit": "Wh"
+    },
+    "error": {
+      "category": "diagnostic",
+      "class": "problem",
+      "type": "binary"
+    },
+    "error_message": {
+      "category": "diagnostic",
+      "type": "text"
+    },
+    "favorite": {
+      "category": "diagnostic",
+      "label": "Favourite course",
+      "type": "binary"
+    },
+    "fresh_care": {
+      "type": "binary"
+    },
+    "initial_time": {
+      "category": "diagnostic",
+      "class": "duration",
+      "label": "Cycle length",
+      "type": "number",
+      "unit": "min"
+    },
+    "load_level": {
+      "category": "diagnostic",
+      "label": "Load level (AI DD estimate, 0-4)",
+      "series": "gauge",
+      "type": "number"
+    },
+    "op_course": {
+      "category": "diagnostic",
+      "label": "Running course",
+      "options": [
+        "none",
+        "steam_cleaning",
+        "allergy_care",
+        "utility",
+        "speed_wash",
+        "cotton",
+        "cotton_eco",
+        "silent",
+        "lingerie_wool",
+        "duvet",
+        "tub_clean",
+        "baby_wear",
+        "easy_care",
+        "boil_wash",
+        "heavy_duty",
+        "cold_wash",
+        "colour_care",
+        "rinse_spin",
+        "smart_energy",
+        "blanket",
+        "air_wash",
+        "spin_only",
+        "double_rinse",
+        "speed_dry",
+        "speed_wash_dry",
+        "pet_care",
+        "quick_tub_clean"
+      ],
+      "type": "select"
+    },
+    "pause": {
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "power": {
+      "class": "running",
+      "label": "Powered on",
+      "type": "binary"
+    },
+    "power_off": {
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "remaining_time": {
+      "class": "duration",
+      "type": "number",
+      "unit": "min"
+    },
+    "remote_start": {
+      "category": "diagnostic",
+      "label": "Remote start armed at the panel",
+      "type": "binary"
+    },
+    "reserve_time": {
+      "class": "duration",
+      "label": "Reserved finish time",
+      "type": "number",
+      "unit": "min"
+    },
+    "rinse": {
+      "label": "Rinse cycles",
+      "series": "gauge",
+      "type": "number"
+    },
+    "rinse_hold": {
+      "type": "binary"
+    },
+    "soil": {
+      "label": "Soil level",
+      "options": [
+        "none",
+        "light",
+        "normal",
+        "heavy",
+        "pre_wash",
+        "soaking"
+      ],
+      "type": "select"
+    },
+    "spin": {
+      "options": [
+        "no_spin",
+        "very_low",
+        "low",
+        "medium",
+        "high",
+        "extra_high"
+      ],
+      "type": "select"
+    },
+    "start": {
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "status": {
+      "options": [
+        "off",
+        "initial",
+        "paused",
+        "error_auto_off",
+        "reserved",
+        "sensing",
+        "draining",
+        "detergent_dosing",
+        "washing",
+        "pre_wash",
+        "rinsing",
+        "rinse_hold",
+        "spinning",
+        "drying",
+        "complete",
+        "refreshing",
+        "freeze_protection_initial",
+        "freeze_protection_running",
+        "freeze_protection_paused",
+        "audible_diagnosis"
+      ],
+      "type": "select"
+    },
+    "steam": {
+      "type": "binary"
+    },
+    "temp": {
+      "label": "Water temperature",
+      "options": [
+        "none",
+        "cold",
+        "30",
+        "40",
+        "60",
+        "95"
+      ],
+      "type": "select"
+    },
+    "tub_clean_count": {
+      "category": "diagnostic",
+      "label": "Cycles since Tub Clean",
+      "series": "gauge",
+      "type": "number"
+    },
+    "turbo_shot": {
+      "label": "TurboShot",
+      "type": "binary"
+    }
+  },
+  "source": "rusthinq",
+  "vendor": "LG",
+  "x-mqtt": {
+    "reject": "rusthinq/{id}/reject",
+    "set": "rusthinq/{id}/{prop}/set",
+    "state": "rusthinq/{id}/{prop}"
+  }
+}

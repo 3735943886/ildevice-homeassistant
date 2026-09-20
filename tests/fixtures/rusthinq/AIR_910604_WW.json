@@ -1,0 +1,154 @@
+{
+  "class": "air_purifier",
+  "id": "harness",
+  "il": 0,
+  "kind": "fan",
+  "label": "Air purifier",
+  "model": "AIR_910604_WW",
+  "props": {
+    "air_quality": {
+      "max": 4,
+      "min": 1,
+      "series": "gauge",
+      "src": {
+        "tlv_tag": "0x240"
+      },
+      "type": "number"
+    },
+    "available": {
+      "role": "available",
+      "type": "binary"
+    },
+    "error": {
+      "category": "diagnostic",
+      "src": {
+        "tlv_tag": "0x221"
+      },
+      "type": "number"
+    },
+    "fan": {
+      "options": [
+        "low",
+        "mid",
+        "high",
+        "power",
+        "auto"
+      ],
+      "role": "fan_speed",
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x1fa"
+      },
+      "type": "select"
+    },
+    "filter_life": {
+      "series": "gauge",
+      "src": {
+        "tlv_tag": "0x355"
+      },
+      "type": "number",
+      "unit": "%"
+    },
+    "light": {
+      "category": "config",
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x24e"
+      },
+      "type": "binary"
+    },
+    "mode": {
+      "options": [
+        "circulator_clean",
+        "baby_care",
+        "dual_clean",
+        "auto"
+      ],
+      "role": "mode",
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x1f9"
+      },
+      "type": "select"
+    },
+    "odor": {
+      "max": 4,
+      "min": 1,
+      "series": "gauge",
+      "src": {
+        "tlv_tag": "0x241"
+      },
+      "type": "number"
+    },
+    "pm1": {
+      "class": "pm1",
+      "series": "gauge",
+      "src": {
+        "tlv_tag": "0x333"
+      },
+      "type": "number",
+      "unit": "μg/m³"
+    },
+    "pm10": {
+      "class": "pm10",
+      "series": "gauge",
+      "src": {
+        "tlv_tag": "0x335"
+      },
+      "type": "number",
+      "unit": "μg/m³"
+    },
+    "pm25": {
+      "class": "pm25",
+      "series": "gauge",
+      "src": {
+        "tlv_tag": "0x334"
+      },
+      "type": "number",
+      "unit": "μg/m³"
+    },
+    "power": {
+      "role": "on",
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x1f7"
+      },
+      "type": "binary"
+    },
+    "sleep_timer": {
+      "class": "duration",
+      "max": 720,
+      "min": 0,
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x21a"
+      },
+      "step": 10,
+      "type": "number",
+      "unit": "min"
+    },
+    "sterilize": {
+      "category": "config",
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x360"
+      },
+      "type": "binary"
+    },
+    "top_filter_life": {
+      "series": "gauge",
+      "src": {
+        "tlv_tag": "0x363"
+      },
+      "type": "number",
+      "unit": "%"
+    }
+  },
+  "source": "rusthinq",
+  "vendor": "LG",
+  "x-mqtt": {
+    "reject": "rusthinq/{id}/reject",
+    "set": "rusthinq/{id}/{prop}/set",
+    "state": "rusthinq/{id}/{prop}"
+  }
+}

@@ -1,0 +1,251 @@
+{
+  "class": "styler",
+  "id": "harness",
+  "il": 0,
+  "kind": "clothing_care",
+  "label": "Styler",
+  "model": "S3BF_POD_DN4",
+  "props": {
+    "available": {
+      "role": "available",
+      "type": "binary"
+    },
+    "child_lock": {
+      "category": "diagnostic",
+      "type": "binary"
+    },
+    "course": {
+      "label": "Course (dial)",
+      "options": [
+        "none",
+        "standard",
+        "quick",
+        "heavy",
+        "wool_knitwear",
+        "suits_coats",
+        "sportswear",
+        "download_course",
+        "functional_wear",
+        "sanitary_standard",
+        "bedding",
+        "kids",
+        "dolls",
+        "drying_normal",
+        "drying_wool_knitwear",
+        "time_dry_30",
+        "time_dry_60",
+        "time_dry_90",
+        "time_dry_120",
+        "time_dry_150",
+        "rain_snow",
+        "indoor_dry_120",
+        "indoor_dry_240",
+        "night_care",
+        "sanitary_professional",
+        "uniform_care",
+        "padding_care",
+        "trouser_crease_care",
+        "fine_dust",
+        "virus_care",
+        "jeans",
+        "fur_leather",
+        "static_removal",
+        "kids_items",
+        "silent_downloaded",
+        "fur_leather_downloaded"
+      ],
+      "type": "select"
+    },
+    "course_select": {
+      "label": "Course for Start",
+      "options": [
+        "standard",
+        "quick",
+        "heavy",
+        "wool_knitwear",
+        "suits_coats",
+        "sportswear",
+        "sanitary_standard",
+        "bedding",
+        "drying_normal",
+        "rain_snow",
+        "padding_care",
+        "fine_dust",
+        "virus_care",
+        "jeans",
+        "fur_leather",
+        "static_removal"
+      ],
+      "rw": true,
+      "type": "select"
+    },
+    "download_course": {
+      "category": "diagnostic",
+      "label": "Downloaded course",
+      "options": [
+        "none",
+        "suits_uniforms",
+        "scarves",
+        "athletic_wear",
+        "smoke_removal",
+        "food_odour_removal",
+        "trousers",
+        "silent",
+        "coat_warmer",
+        "static_removal",
+        "uniform_care",
+        "stored_items",
+        "allergy_care",
+        "blanket_warmer",
+        "uniform_drying",
+        "dress_shirts",
+        "rain_snow_drying",
+        "spot_drying",
+        "fur_leather",
+        "swimwear_drying",
+        "fine_dust_removal",
+        "virus_care",
+        "jeans_care",
+        "baby_clothes_sanitary",
+        "doll_sanitary",
+        "wool_delicate_drying",
+        "rainy_days",
+        "uniform",
+        "padding_care",
+        "thin_padding_care",
+        "thick_padding_care",
+        "silk_care"
+      ],
+      "type": "select"
+    },
+    "energy": {
+      "class": "energy",
+      "label": "Cycle energy",
+      "series": "counter",
+      "type": "number",
+      "unit": "Wh"
+    },
+    "error": {
+      "category": "diagnostic",
+      "class": "problem",
+      "type": "binary"
+    },
+    "error_message": {
+      "category": "diagnostic",
+      "type": "text"
+    },
+    "initial_time": {
+      "category": "diagnostic",
+      "class": "duration",
+      "label": "Cycle length",
+      "type": "number",
+      "unit": "min"
+    },
+    "night_dry": {
+      "type": "binary"
+    },
+    "pause": {
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "power": {
+      "class": "running",
+      "label": "Powered on",
+      "type": "binary"
+    },
+    "power_off": {
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "remaining_time": {
+      "class": "duration",
+      "type": "number",
+      "unit": "min"
+    },
+    "remote_start": {
+      "category": "diagnostic",
+      "label": "Remote start armed at the panel",
+      "type": "binary"
+    },
+    "reserve_time": {
+      "class": "duration",
+      "label": "Reserved finish time",
+      "type": "number",
+      "unit": "min"
+    },
+    "smart_course": {
+      "options": [
+        "none",
+        "suits_uniforms",
+        "scarves",
+        "athletic_wear",
+        "smoke_removal",
+        "food_odour_removal",
+        "trousers",
+        "silent",
+        "coat_warmer",
+        "static_removal",
+        "uniform_care",
+        "stored_items",
+        "allergy_care",
+        "blanket_warmer",
+        "uniform_drying",
+        "dress_shirts",
+        "rain_snow_drying",
+        "spot_drying",
+        "fur_leather",
+        "swimwear_drying",
+        "fine_dust_removal",
+        "virus_care",
+        "jeans_care",
+        "baby_clothes_sanitary",
+        "doll_sanitary",
+        "wool_delicate_drying",
+        "rainy_days",
+        "uniform",
+        "padding_care",
+        "thin_padding_care",
+        "thick_padding_care",
+        "silk_care"
+      ],
+      "type": "select"
+    },
+    "start": {
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "status": {
+      "options": [
+        "off",
+        "initial",
+        "running",
+        "paused",
+        "complete",
+        "error",
+        "diagnosis",
+        "night_dry",
+        "reserved",
+        "sleep",
+        "pre_steam",
+        "pre_heat",
+        "steam",
+        "stay",
+        "cooling",
+        "drying",
+        "end_cooling",
+        "sterilizing",
+        "finishing",
+        "complete_keeping_fresh",
+        "firmware_update"
+      ],
+      "type": "select"
+    }
+  },
+  "source": "rusthinq",
+  "vendor": "LG",
+  "x-mqtt": {
+    "reject": "rusthinq/{id}/reject",
+    "set": "rusthinq/{id}/{prop}/set",
+    "state": "rusthinq/{id}/{prop}"
+  }
+}

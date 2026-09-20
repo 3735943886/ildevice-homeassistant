@@ -1,0 +1,147 @@
+{
+  "class": "dehumidifier",
+  "id": "harness",
+  "il": 0,
+  "kind": "humidifier",
+  "label": "Dehumidifier",
+  "model": "DHUM_056905_WW",
+  "props": {
+    "available": {
+      "role": "available",
+      "type": "binary"
+    },
+    "bucket_light": {
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x21e"
+      },
+      "type": "binary"
+    },
+    "error": {
+      "category": "diagnostic",
+      "src": {
+        "tlv_tag": "0x221"
+      },
+      "type": "number"
+    },
+    "fan": {
+      "options": [
+        "low",
+        "high"
+      ],
+      "role": "fan_speed",
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x1fa"
+      },
+      "type": "select"
+    },
+    "humidity": {
+      "class": "humidity",
+      "role": "current_humidity",
+      "series": "gauge",
+      "src": {
+        "tlv_tag": "0x336"
+      },
+      "type": "number",
+      "unit": "%"
+    },
+    "mode": {
+      "options": [
+        "smart",
+        "jet",
+        "silent",
+        "spot",
+        "laundry"
+      ],
+      "role": "mode",
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x1f9"
+      },
+      "type": "select"
+    },
+    "off_timer": {
+      "class": "duration",
+      "max": 540,
+      "min": 0,
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x21b"
+      },
+      "step": 60,
+      "type": "number",
+      "unit": "min"
+    },
+    "power": {
+      "role": "on",
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x1f7"
+      },
+      "type": "binary"
+    },
+    "sterilize": {
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x360"
+      },
+      "type": "binary"
+    },
+    "tank_full": {
+      "class": "problem",
+      "src": {
+        "tlv_tag": "0x186"
+      },
+      "type": "binary"
+    },
+    "tank_state": {
+      "category": "diagnostic",
+      "options": [
+        "not_full",
+        "full_stopped",
+        "full_fan_mode"
+      ],
+      "src": {
+        "tlv_tag": "0x186"
+      },
+      "type": "select"
+    },
+    "target": {
+      "max": 70,
+      "min": 30,
+      "role": "target_humidity",
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x253"
+      },
+      "step": 1,
+      "type": "number",
+      "unit": "%"
+    },
+    "temperature": {
+      "class": "temperature",
+      "role": "current_temperature",
+      "series": "gauge",
+      "src": {
+        "tlv_tag": "0x1fd"
+      },
+      "type": "number",
+      "unit": "°C"
+    },
+    "uvnano": {
+      "rw": true,
+      "src": {
+        "tlv_tag": "0x2a2"
+      },
+      "type": "binary"
+    }
+  },
+  "source": "rusthinq",
+  "vendor": "LG",
+  "x-mqtt": {
+    "reject": "rusthinq/{id}/reject",
+    "set": "rusthinq/{id}/{prop}/set",
+    "state": "rusthinq/{id}/{prop}"
+  }
+}

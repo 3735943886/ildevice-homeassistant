@@ -1,0 +1,128 @@
+{
+  "class": "water_purifier",
+  "id": "harness",
+  "il": 0,
+  "kind": "dispenser",
+  "label": "Water purifier",
+  "model": "1WPU4CIGCR__2",
+  "props": {
+    "auto_care": {
+      "category": "config",
+      "rw": true,
+      "type": "binary"
+    },
+    "available": {
+      "role": "available",
+      "type": "binary"
+    },
+    "button_sound": {
+      "category": "config",
+      "rw": true,
+      "type": "binary"
+    },
+    "cold_water_today": {
+      "class": "volume",
+      "label": "Cold water dispensed today",
+      "series": "counter",
+      "type": "number",
+      "unit": "mL"
+    },
+    "default_amount": {
+      "category": "config",
+      "options": [
+        "120ml",
+        "250ml",
+        "500ml"
+      ],
+      "rw": true,
+      "type": "select"
+    },
+    "default_water": {
+      "category": "config",
+      "options": [
+        "last_used",
+        "normal",
+        "cold"
+      ],
+      "rw": true,
+      "type": "select"
+    },
+    "hot_water_today": {
+      "class": "volume",
+      "label": "Hot water dispensed today",
+      "series": "counter",
+      "type": "number",
+      "unit": "mL"
+    },
+    "normal_water_today": {
+      "class": "volume",
+      "label": "Purified water dispensed today",
+      "series": "counter",
+      "type": "number",
+      "unit": "mL"
+    },
+    "not_use_notice": {
+      "category": "config",
+      "label": "Unused-water notice",
+      "rw": true,
+      "type": "binary"
+    },
+    "self_clean_next": {
+      "category": "diagnostic",
+      "label": "Next self-clean, UTC (MM-DD HH:MM)",
+      "type": "text"
+    },
+    "status": {
+      "category": "diagnostic",
+      "options": [
+        "failed",
+        "not_working",
+        "normal"
+      ],
+      "type": "select"
+    },
+    "sterilized_water_today": {
+      "class": "volume",
+      "label": "Sterilised water dispensed today",
+      "series": "counter",
+      "type": "number",
+      "unit": "mL"
+    },
+    "tap_uv": {
+      "label": "Tap UV lamp",
+      "options": [
+        "standby",
+        "cleaning",
+        "cleaning_manual"
+      ],
+      "type": "select"
+    },
+    "water_amount": {
+      "label": "Amount selected",
+      "options": [
+        "120ml",
+        "250ml",
+        "500ml",
+        "continuous"
+      ],
+      "type": "select"
+    },
+    "water_selection": {
+      "label": "Water selected",
+      "options": [
+        "hot",
+        "normal",
+        "cold",
+        "sterilized"
+      ],
+      "type": "select"
+    }
+  },
+  "source": "rusthinq",
+  "vendor": "LG",
+  "x-mqtt": {
+    "reject": "rusthinq/{id}/reject",
+    "set": "rusthinq/{id}/{prop}/set",
+    "state": "rusthinq/{id}/{prop}"
+  }
+}

@@ -1,0 +1,133 @@
+{
+  "class": "dishwasher",
+  "id": "harness",
+  "il": 0,
+  "kind": "washer",
+  "label": "Dishwasher",
+  "model": "D140110",
+  "props": {
+    "available": {
+      "role": "available",
+      "type": "binary"
+    },
+    "child_lock": {
+      "type": "binary"
+    },
+    "chime": {
+      "category": "diagnostic",
+      "type": "binary"
+    },
+    "course": {
+      "label": "Cycle",
+      "options": [
+        "none",
+        "auto",
+        "intensive",
+        "delicate",
+        "turbo",
+        "eco",
+        "rinse",
+        "refresh",
+        "express",
+        "machine_clean",
+        "download_cycle"
+      ],
+      "type": "select"
+    },
+    "door": {
+      "class": "door",
+      "label": "Door open",
+      "type": "binary"
+    },
+    "error": {
+      "category": "diagnostic",
+      "options": [
+        "none",
+        "HE",
+        "IE",
+        "OE",
+        "FE",
+        "TE",
+        "AE",
+        "EE",
+        "LE",
+        "NE",
+        "BE",
+        "F3"
+      ],
+      "type": "select"
+    },
+    "process": {
+      "label": "Cycle phase",
+      "options": [
+        "none",
+        "reserved",
+        "washing",
+        "rinsing",
+        "drying",
+        "finished",
+        "night_dry",
+        "cancelled"
+      ],
+      "type": "select"
+    },
+    "remaining_time": {
+      "class": "duration",
+      "type": "number",
+      "unit": "min"
+    },
+    "reserve_time": {
+      "class": "duration",
+      "label": "Delayed start",
+      "type": "number",
+      "unit": "min"
+    },
+    "rinse_aid_level": {
+      "category": "diagnostic",
+      "type": "number"
+    },
+    "rinse_refill": {
+      "class": "problem",
+      "label": "Rinse aid low",
+      "type": "binary"
+    },
+    "running": {
+      "class": "running",
+      "type": "binary"
+    },
+    "salt_refill": {
+      "class": "problem",
+      "label": "Salt low",
+      "type": "binary"
+    },
+    "softening_level": {
+      "category": "diagnostic",
+      "label": "Water softening level",
+      "type": "number"
+    },
+    "status": {
+      "options": [
+        "off",
+        "ready",
+        "running",
+        "paused",
+        "standby",
+        "finished",
+        "power_failed"
+      ],
+      "type": "select"
+    },
+    "total_time": {
+      "class": "duration",
+      "type": "number",
+      "unit": "min"
+    }
+  },
+  "source": "rusthinq",
+  "vendor": "LG",
+  "x-mqtt": {
+    "reject": "rusthinq/{id}/reject",
+    "set": "rusthinq/{id}/{prop}/set",
+    "state": "rusthinq/{id}/{prop}"
+  }
+}

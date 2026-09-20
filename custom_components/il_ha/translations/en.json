@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "IL devices",
+        "description": "Devices that publish IL descriptors over MQTT (for example rusthinq or rustuya).",
+        "data": {
+          "il_prefix": "IL topic prefix",
+          "offline_grace": "Seconds before a device is shown unavailable",
+          "aliases": "Legacy entity ids (JSON)"
+        },
+        "data_description": {
+          "aliases": "{\"<model or *>\": {\"<entity key>\": \"<key an earlier integration used>\"}}, to keep existing unique ids."
+        }
+      }
+    },
+    "error": { "bad_aliases": "Not a JSON object of objects of strings." },
+    "abort": { "already_configured": "Already set up." }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "il_prefix": "IL topic prefix",
+          "offline_grace": "Seconds before a device is shown unavailable",
+          "aliases": "Legacy entity ids (JSON)"
+        }
+      }
+    },
+    "error": { "bad_aliases": "Not a JSON object of objects of strings." }
+  }
+}

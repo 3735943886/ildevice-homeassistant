@@ -1,0 +1,161 @@
+{
+  "id": "harness",
+  "il": 0,
+  "kind": "cooktop",
+  "label": "Cooktop",
+  "model": "WBEY3GT",
+  "props": {
+    "available": {
+      "role": "available",
+      "type": "binary"
+    },
+    "cooking": {
+      "class": "heat",
+      "type": "binary"
+    },
+    "left_front_cook_time": {
+      "class": "duration",
+      "group": "left_front",
+      "label": "Left front cooking time",
+      "type": "number",
+      "unit": "min"
+    },
+    "left_front_off": {
+      "group": "left_front",
+      "label": "Switch Left front off",
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "left_front_power_level": {
+      "group": "left_front",
+      "label": "Left front power level",
+      "series": "gauge",
+      "type": "number"
+    },
+    "left_front_remaining_time": {
+      "class": "duration",
+      "group": "left_front",
+      "label": "Left front remaining time",
+      "max": 719,
+      "min": 0,
+      "requires": "remote_start",
+      "rw": true,
+      "step": 1,
+      "type": "number",
+      "unit": "min"
+    },
+    "left_front_state": {
+      "group": "left_front",
+      "label": "Left front state",
+      "options": [
+        "off",
+        "cooking",
+        "paused"
+      ],
+      "type": "select"
+    },
+    "left_rear_cook_time": {
+      "class": "duration",
+      "group": "left_rear",
+      "label": "Left rear cooking time",
+      "type": "number",
+      "unit": "min"
+    },
+    "left_rear_off": {
+      "group": "left_rear",
+      "label": "Switch Left rear off",
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "left_rear_power_level": {
+      "group": "left_rear",
+      "label": "Left rear power level",
+      "series": "gauge",
+      "type": "number"
+    },
+    "left_rear_remaining_time": {
+      "class": "duration",
+      "group": "left_rear",
+      "label": "Left rear remaining time",
+      "max": 719,
+      "min": 0,
+      "requires": "remote_start",
+      "rw": true,
+      "step": 1,
+      "type": "number",
+      "unit": "min"
+    },
+    "left_rear_state": {
+      "group": "left_rear",
+      "label": "Left rear state",
+      "options": [
+        "off",
+        "cooking",
+        "paused"
+      ],
+      "type": "select"
+    },
+    "locked": {
+      "label": "Panel lock",
+      "type": "binary"
+    },
+    "power_off": {
+      "label": "Switch the cooktop off",
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "remote_start": {
+      "category": "diagnostic",
+      "label": "Remote start granted at the panel",
+      "type": "binary"
+    },
+    "right_cook_time": {
+      "class": "duration",
+      "group": "right",
+      "label": "Right cooking time",
+      "type": "number",
+      "unit": "min"
+    },
+    "right_off": {
+      "group": "right",
+      "label": "Switch Right off",
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "right_power_level": {
+      "group": "right",
+      "label": "Right power level",
+      "series": "gauge",
+      "type": "number"
+    },
+    "right_remaining_time": {
+      "class": "duration",
+      "group": "right",
+      "label": "Right remaining time",
+      "max": 719,
+      "min": 0,
+      "requires": "remote_start",
+      "rw": true,
+      "step": 1,
+      "type": "number",
+      "unit": "min"
+    },
+    "right_state": {
+      "group": "right",
+      "label": "Right state",
+      "options": [
+        "off",
+        "cooking",
+        "paused"
+      ],
+      "type": "select"
+    }
+  },
+  "source": "rusthinq",
+  "vendor": "LG",
+  "x-mqtt": {
+    "reject": "rusthinq/{id}/reject",
+    "set": "rusthinq/{id}/{prop}/set",
+    "state": "rusthinq/{id}/{prop}"
+  }
+}

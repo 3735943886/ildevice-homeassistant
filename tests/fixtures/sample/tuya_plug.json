@@ -1,0 +1,29 @@
+{
+  "il": 0,
+  "id": "bf3a91c0d2e4",
+  "source": "rustuya",
+  "kind": "switch",
+  "class": "outlet",
+  "label": "Smart plug",
+  "vendor": "Tuya",
+  "model": "TS011F",
+  "identifiers": { "tuya_id": "bf3a91c0d2e4" },
+  "props": {
+    "available": { "type": "binary", "role": "available" },
+    "switch_1": { "type": "binary", "rw": true, "label": "Power", "src": { "tuya_dp": 1 },
+                  "x-mqtt": { "state": "tuya/bf3a91c0d2e4/dp1", "set": "tuya/bf3a91c0d2e4/dp1/set" } },
+    "cur_power": { "type": "number", "class": "power", "series": "gauge", "unit": "W", "label": "Power draw",
+                   "x-mqtt": { "state": "tuya/bf3a91c0d2e4/dp19" } },
+    "cur_voltage": { "type": "number", "class": "voltage", "series": "gauge", "unit": "V", "category": "diagnostic",
+                     "x-mqtt": { "state": "tuya/bf3a91c0d2e4/dp20" } },
+    "add_ele": { "type": "number", "class": "energy", "series": "counter", "unit": "kWh", "label": "Energy",
+                 "x-mqtt": { "state": "tuya/bf3a91c0d2e4/dp17" } },
+    "countdown_1": { "type": "number", "rw": true, "class": "duration", "unit": "s", "min": 0, "max": 86400, "step": 1,
+                     "category": "config", "x-mqtt": { "state": "tuya/bf3a91c0d2e4/dp9", "set": "tuya/bf3a91c0d2e4/dp9/set" } },
+    "child_lock": { "type": "binary", "rw": true, "category": "config",
+                    "x-mqtt": { "state": "tuya/bf3a91c0d2e4/dp41", "set": "tuya/bf3a91c0d2e4/dp41/set" } },
+    "relay_status": { "type": "select", "rw": true, "options": ["power_on", "power_off", "last"],
+                      "category": "config", "x-mqtt": { "state": "tuya/bf3a91c0d2e4/dp38", "set": "tuya/bf3a91c0d2e4/dp38/set" } }
+  },
+  "x-mqtt": { "reject": "tuya/bf3a91c0d2e4/reject" }
+}

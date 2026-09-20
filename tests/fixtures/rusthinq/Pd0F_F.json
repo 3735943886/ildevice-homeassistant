@@ -1,0 +1,163 @@
+{
+  "class": "mini_washer",
+  "id": "harness",
+  "il": 0,
+  "kind": "washer",
+  "label": "Mini washer",
+  "model": "Pd0F_F",
+  "props": {
+    "audible_diagnosis": {
+      "category": "diagnostic",
+      "type": "binary"
+    },
+    "available": {
+      "role": "available",
+      "type": "binary"
+    },
+    "child_lock": {
+      "category": "diagnostic",
+      "type": "binary"
+    },
+    "course": {
+      "label": "Course (dial)",
+      "options": [
+        "none",
+        "small_load",
+        "underwear",
+        "wool",
+        "light_boil",
+        "baby_care",
+        "rinse_spin",
+        "tub_clean",
+        "spin_only",
+        "hand_wash",
+        "speed_wash",
+        "active_wear",
+        "intimate",
+        "cotton_eco_full",
+        "cotton_eco_half",
+        "cotton_20"
+      ],
+      "type": "select"
+    },
+    "course_select": {
+      "label": "Course for Start",
+      "options": [
+        "small_load",
+        "underwear",
+        "wool",
+        "light_boil",
+        "baby_care",
+        "rinse_spin",
+        "tub_clean"
+      ],
+      "rw": true,
+      "type": "select"
+    },
+    "door_lock": {
+      "category": "diagnostic",
+      "type": "binary"
+    },
+    "error": {
+      "category": "diagnostic",
+      "class": "problem",
+      "type": "binary"
+    },
+    "error_message": {
+      "category": "diagnostic",
+      "type": "text"
+    },
+    "initial_time": {
+      "category": "diagnostic",
+      "class": "duration",
+      "label": "Cycle length",
+      "type": "number",
+      "unit": "min"
+    },
+    "pause": {
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "power": {
+      "class": "running",
+      "label": "Powered on",
+      "type": "binary"
+    },
+    "power_off": {
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "remaining_time": {
+      "class": "duration",
+      "type": "number",
+      "unit": "min"
+    },
+    "remote_start": {
+      "category": "diagnostic",
+      "label": "Remote start armed at the panel",
+      "type": "binary"
+    },
+    "reserve_time": {
+      "class": "duration",
+      "label": "Reserved finish time",
+      "type": "number",
+      "unit": "min"
+    },
+    "rinse": {
+      "label": "Rinse cycles",
+      "series": "gauge",
+      "type": "number"
+    },
+    "spin": {
+      "type": "binary"
+    },
+    "start": {
+      "requires": "remote_start",
+      "type": "trigger"
+    },
+    "status": {
+      "options": [
+        "off",
+        "initial",
+        "paused",
+        "sensing",
+        "soaking",
+        "washing",
+        "rinsing",
+        "spinning",
+        "complete",
+        "reserved",
+        "firmware_update",
+        "diagnosis"
+      ],
+      "type": "select"
+    },
+    "sterilize": {
+      "type": "binary"
+    },
+    "temp": {
+      "label": "Water temperature",
+      "options": [
+        "cold",
+        "cold_wash",
+        "30",
+        "35",
+        "38",
+        "40",
+        "60",
+        "90"
+      ],
+      "type": "select"
+    },
+    "warm_water": {
+      "type": "binary"
+    }
+  },
+  "source": "rusthinq",
+  "vendor": "LG",
+  "x-mqtt": {
+    "reject": "rusthinq/{id}/reject",
+    "set": "rusthinq/{id}/{prop}/set",
+    "state": "rusthinq/{id}/{prop}"
+  }
+}
