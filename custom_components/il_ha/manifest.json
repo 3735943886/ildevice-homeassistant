@@ -1,6 +1,6 @@
 {
   "domain": "il_ha",
-  "name": "IL (intermediate layer) devices",
+  "name": "Intermediate Layer",
   "codeowners": ["@3735943886"],
   "config_flow": true,
   "dependencies": ["mqtt"],

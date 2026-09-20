@@ -46,8 +46,8 @@ _COMPOSITES = {
     "climate": (
         "climate",
         ("on", "mode", "fan_speed", "target_temperature", "current_temperature",
-         "swing_vertical", "swing_horizontal", "action"),
-        ("current_humidity",),
+         "swing_vertical", "swing_horizontal", "action", "current_humidity"),
+        (),
         ("target_temperature", "current_temperature"),
     ),
     "humidifier": (

@@ -2,10 +2,10 @@
   "config": {
     "step": {
       "user": {
-        "title": "IL devices",
-        "description": "Devices that publish IL descriptors over MQTT (for example rusthinq or rustuya).",
+        "title": "Intermediate Layer",
+        "description": "Devices that publish Intermediate Layer descriptors over MQTT (for example rusthinq or rustuya).",
         "data": {
-          "il_prefix": "IL topic prefix",
+          "il_prefix": "Topic prefix",
           "offline_grace": "Seconds before a device is shown unavailable",
           "aliases": "Legacy entity ids (JSON)"
         },
@@ -21,7 +21,7 @@
     "step": {
       "init": {
         "data": {
-          "il_prefix": "IL topic prefix",
+          "il_prefix": "Topic prefix",
           "offline_grace": "Seconds before a device is shown unavailable",
           "aliases": "Legacy entity ids (JSON)"
         }

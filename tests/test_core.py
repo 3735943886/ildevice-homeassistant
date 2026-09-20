@@ -147,14 +147,14 @@ def test_the_air_conditioner_is_a_climate_with_its_roles():
         "on": "power", "mode": "mode", "fan_speed": "fan",
         "target_temperature": "target", "current_temperature": "temperature",
         "swing_vertical": "swing_vertical", "swing_horizontal": "swing_horizontal",
-        "action": "action",
+        "action": "action", "current_humidity": "humidity",
     }
     assert (climate.min, climate.max, climate.step) == (16, 30, 0.5)
-    assert dict(climate.shared) == {"current_humidity": "humidity"}
-    # the climate owns those properties; the rest keep their own entities
+    # the climate owns those properties, the measured humidity included (it is an attribute
+    # of the climate, so no sensor repeats it); the rest keep their own entities
     keys = set(by_key(specs))
-    assert {"power", "mode", "fan", "target", "temperature", "action"}.isdisjoint(keys)
-    assert {"humidity", "energy_save", "wind_mode", "sleep_timer", "filter_used"} <= keys
+    assert {"power", "mode", "fan", "target", "temperature", "action", "humidity"}.isdisjoint(keys)
+    assert {"energy_save", "wind_mode", "sleep_timer", "filter_used"} <= keys
 
 
 def test_the_dehumidifier_is_a_humidifier_of_class_dehumidifier():
@@ -199,8 +199,9 @@ def test_types_choose_the_platform():
     assert k["energy_save"].platform == "switch"
     assert k["wind_mode"].platform == "select"
     assert k["sleep_timer"].platform == "number"
-    assert k["humidity"].platform == "sensor"
+    assert k["power_draw"].platform == "sensor"
     assert k["error"].platform == "sensor"
+    assert "humidity" not in k  # the climate carries it
     _, laundry = plan("F24VDD")
     k = by_key(laundry)
     assert k["start"].platform == "button"
@@ -213,8 +214,9 @@ def test_types_choose_the_platform():
 def test_class_series_and_category_carry_over():
     _, specs = plan("CST_570004_WW")
     k = by_key(specs)
-    assert k["humidity"].device_class == "humidity"
-    assert k["humidity"].state_class == "measurement"
+    assert k["power_draw"].device_class == "power"
+    assert k["power_draw"].state_class == "measurement"
+    assert by_key(plan("DHUM_056905_WW")[1])["humidity"].device_class == "humidity"
     assert k["filter_used"].device_class == "duration"
     assert k["filter_used"].state_class == "total_increasing"
     assert k["error"].entity_category == "diagnostic"
