@@ -18,6 +18,7 @@ PLATFORMS = [
     "button",
     "climate",
     "cover",
+    "event",
     "fan",
     "humidifier",
     "light",
@@ -25,6 +26,8 @@ PLATFORMS = [
     "number",
     "select",
     "sensor",
+    "siren",
     "switch",
     "text",
+    "valve",
 ]

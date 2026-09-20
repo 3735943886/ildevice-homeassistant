@@ -1,0 +1,24 @@
+{
+  "il": 0,
+  "id": "valve01",
+  "source": "rustuya",
+  "kind": "valve",
+  "vendor": "Tuya",
+  "identifiers": {
+    "tuya_id": "valve01"
+  },
+  "props": {
+    "switch": {
+      "type": "binary",
+      "rw": true,
+      "role": "opened",
+      "x-mqtt": {
+        "state": "tuya/valve01/switch",
+        "set": "tuya/valve01/switch/set"
+      }
+    }
+  },
+  "x-mqtt": {
+    "reject": "tuya/valve01/reject"
+  }
+}

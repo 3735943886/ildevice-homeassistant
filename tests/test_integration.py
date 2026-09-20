@@ -556,3 +556,55 @@ async def test_a_lock(hass, mqtt_mock):
     tuya_value(hass, "lock01", "locked", "false")
     await hass.async_block_till_done()
     assert hass.states.get(lid).state == "unlocked"
+
+
+async def test_a_siren(hass, mqtt_mock):
+    await setup(hass)
+    announce(hass, tuya("tuya_siren"))
+    await hass.async_block_till_done()
+    tuya_value(hass, "siren01", "switch", "false")
+    await hass.async_block_till_done()
+    sid = entity_id(hass, "siren", "siren01-siren")
+    assert hass.states.get(sid).state == STATE_OFF
+    await hass.services.async_call("siren", "turn_on", {"entity_id": sid}, blocking=True)
+    assert_published(mqtt_mock, "tuya/siren01/switch/set", "true")
+    tuya_value(hass, "siren01", "switch", "true")
+    await hass.async_block_till_done()
+    assert hass.states.get(sid).state == STATE_ON
+
+
+async def test_a_valve(hass, mqtt_mock):
+    await setup(hass)
+    announce(hass, tuya("tuya_valve"))
+    await hass.async_block_till_done()
+    tuya_value(hass, "valve01", "switch", "true")
+    await hass.async_block_till_done()
+    vid = entity_id(hass, "valve", "valve01-valve")
+    assert hass.states.get(vid).state == "open"
+    await hass.services.async_call("valve", "close_valve", {"entity_id": vid}, blocking=True)
+    assert_published(mqtt_mock, "tuya/valve01/switch/set", "false")
+    tuya_value(hass, "valve01", "switch", "false")
+    await hass.async_block_till_done()
+    assert hass.states.get(vid).state == "closed"
+
+
+async def test_an_event_fires_once_per_message_and_ignores_a_retained_one(hass, mqtt_mock):
+    await setup(hass)
+    async_fire_mqtt_message(hass, "tuya/btn01/button", "click", retain=True)   # before the device is known
+    announce(hass, tuya("tuya_button"))
+    await hass.async_block_till_done()
+    eid = entity_id(hass, "event", "btn01-button")
+    assert hass.states.get(eid).attributes.get("event_type") is None
+    async_fire_mqtt_message(hass, "tuya/btn01/button", "click", retain=True)   # a replayed old one
+    await hass.async_block_till_done()
+    assert hass.states.get(eid).attributes.get("event_type") is None
+    async_fire_mqtt_message(hass, "tuya/btn01/button", "double_click")
+    await hass.async_block_till_done()
+    assert hass.states.get(eid).attributes["event_type"] == "double_click"
+    first = hass.states.get(eid).state
+    async_fire_mqtt_message(hass, "tuya/btn01/button", "double_click")   # the same kind again is another one
+    await hass.async_block_till_done()
+    assert hass.states.get(eid).state != first
+    async_fire_mqtt_message(hass, "tuya/btn01/button", "unknown_kind")
+    await hass.async_block_till_done()
+    assert hass.states.get(eid).attributes["event_type"] == "double_click"

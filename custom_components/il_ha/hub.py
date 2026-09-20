@@ -28,6 +28,11 @@ def signal(device_id: str) -> str:
     return f"{DOMAIN}_update_{device_id}"
 
 
+def event_signal(device_id: str, prop: str) -> str:
+    """One dispatch per occurrence of an `event` property; the argument is its kind."""
+    return f"{DOMAIN}_event_{device_id}_{prop}"
+
+
 @dataclass
 class Device:
     desc: Descriptor
@@ -216,6 +221,14 @@ class IlHub:
     def _state_callback(self, dev: Device, prop: str):
         @callback
         def on_state(msg) -> None:
+            if dev.desc.props[prop].type == "event":
+                # every message is one occurrence; a retained one is an old occurrence the broker
+                # replays on (re)subscribe, not a new one
+                kind = msg.payload.decode("utf-8", "replace") if isinstance(msg.payload, (bytes, bytearray)) else msg.payload
+                kind = kind.strip()
+                if kind and not msg.retain:
+                    async_dispatcher_send(self.hass, event_signal(dev.desc.id, prop), kind)
+                return
             value = decode_value(dev.desc.props[prop], msg.payload)
             if value is None:
                 dev.values.pop(prop, None)

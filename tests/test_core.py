@@ -314,3 +314,101 @@ def test_aliases_that_collide_are_refused():
     desc = parse_descriptor(load("rusthinq/DHUM_056905_WW.json"))
     with pytest.raises(ValueError):
         plan_entities(desc, {"uvnano": "sterilize"})
+
+
+# ---- planning: a group with its own kind is a composite of its own -------------------------
+
+
+def _two_composites():
+    return parse_descriptor({
+        "il": 0, "id": "clkg1", "kind": "cover",
+        "groups": {"light": {"kind": "light", "label": "Light"}},
+        "props": {
+            "position": {"type": "number", "rw": True, "role": "position", "unit": "%", "min": 0, "max": 100, "step": 1},
+            "open": {"type": "trigger", "role": "open"},
+            "close": {"type": "trigger", "role": "close"},
+            "switch_led": {"type": "binary", "rw": True, "role": "on", "group": "light"},
+            "brightness": {"type": "number", "rw": True, "role": "brightness", "unit": "%", "min": 1, "max": 100, "step": 1, "group": "light"},
+        },
+    })
+
+
+def test_a_group_with_a_kind_is_its_own_composite():
+    specs = by_key(plan_entities(_two_composites()))
+    assert {s.platform for s in specs.values()} == {"cover", "light"}
+    assert dict(specs["cover"].slots) == {"position": "position", "open": "open", "close": "close"}
+    assert dict(specs["light"].slots) == {"on": "switch_led", "brightness": "brightness"}
+    assert specs["light"].unique_id == "clkg1-light" and specs["light"].name == "Light"
+
+
+def test_two_lights_on_one_device_each_own_their_roles():
+    desc = parse_descriptor({
+        "il": 0, "id": "dj1",
+        "groups": {"switch_led": {"kind": "light"}, "switch_1": {"kind": "light", "label": "Second"}},
+        "props": {
+            "led": {"type": "binary", "rw": True, "role": "on", "group": "switch_led"},
+            "one": {"type": "binary", "rw": True, "role": "on", "group": "switch_1"},
+        },
+    })
+    specs = plan_entities(desc)
+    assert [(s.platform, s.key, s.slots["on"]) for s in specs] == [("light", "switch_led", "led"), ("light", "switch_1", "one")]
+
+
+def test_a_group_without_a_kind_stays_a_label_and_the_device_kind_keeps_its_roles():
+    desc = parse_descriptor({
+        "il": 0, "id": "x", "kind": "fan",
+        "props": {"power": {"type": "binary", "rw": True, "role": "on", "group": "left"}},
+    })
+    specs = plan_entities(desc)
+    assert [s.platform for s in specs] == ["fan"]
+
+
+def test_a_kinded_group_that_cannot_form_its_composite_falls_back_to_plain_entities():
+    desc = parse_descriptor({
+        "il": 0, "id": "x", "groups": {"light": {"kind": "light"}},
+        "props": {"level": {"type": "number", "rw": True, "role": "brightness", "group": "light"}},
+    })
+    assert [s.platform for s in plan_entities(desc)] == ["number"]
+
+
+# ---- planning: classes and categories the first Tuya spike found missing ---------------------
+
+
+def _one(prop, **extra):
+    return plan_entities(parse_descriptor({"il": 0, "id": "x", "props": {"p": prop}, **extra}))[0]
+
+
+def test_a_writable_binary_keeps_its_class():
+    spec = _one({"type": "binary", "rw": True, "class": "outlet"})
+    assert spec.platform == "switch" and spec.device_class == "outlet"
+
+
+def test_a_trigger_keeps_its_class_and_can_be_a_diagnostic():
+    spec = _one({"type": "trigger", "class": "restart", "category": "diagnostic"})
+    assert (spec.platform, spec.device_class, spec.entity_category) == ("button", "restart", "diagnostic")
+
+
+def test_a_read_only_select_is_an_enumeration_sensor():
+    spec = _one({"type": "select", "options": ["a", "b"]})
+    assert (spec.platform, spec.device_class, spec.options) == ("sensor", "enum", ("a", "b"))
+    assert _one({"type": "select", "rw": True, "options": ["a"]}).device_class is None
+
+
+# ---- planning: siren and valve ---------------------------------------------------------------
+
+
+def test_a_siren_is_on_and_off():
+    _, specs = sample("tuya_siren")
+    assert [(s.platform, dict(s.slots)) for s in specs] == [("siren", {"on": "switch"})]
+
+
+def test_a_valve_is_opened_and_closed_and_only_when_it_can_be_written():
+    _, specs = sample("tuya_valve")
+    assert [(s.platform, dict(s.slots)) for s in specs] == [("valve", {"opened": "switch"})]
+    desc = parse_descriptor({"il": 0, "id": "v", "kind": "valve", "props": {"p": {"type": "binary", "role": "opened"}}})
+    assert [s.platform for s in plan_entities(desc)] == ["binary_sensor"]
+
+
+def test_an_event_property_is_an_event_entity_with_its_kinds_as_options():
+    _, specs = sample("tuya_button")
+    assert [(s.platform, s.options) for s in specs] == [("event", ("click", "double_click", "long_press"))]

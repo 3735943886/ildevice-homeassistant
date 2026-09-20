@@ -18,7 +18,7 @@ from .descriptor import Descriptor, Prop
 class EntitySpec:
     platform: str
     """`climate`, `humidifier`, `fan`, `light`, `cover`, `lock`, `sensor`, `binary_sensor`,
-    `switch`, `number`, `select`, `text` or `button`."""
+    `switch`, `number`, `select`, `text`, `button` or `event`."""
     key: str
     """Stable name of the entity within its device (the property name, or the composite's
     platform)."""
@@ -80,6 +80,8 @@ _COMPOSITES = {
         (),
         ("locked",),
     ),
+    "siren": ("siren", ("on",), (), ("on",)),
+    "valve": ("valve", ("opened",), (), ("opened",)),
 }
 
 # a descriptor `class` -> the device class Home Assistant knows it as
@@ -99,8 +101,8 @@ def _name(prop: Prop) -> str:
 
 
 def _category(prop: Prop) -> str | None:
-    # a diagnostic is read only, a config entity is a setting
-    if prop.category == "diagnostic" and not prop.writable:
+    # a diagnostic is read only, or a trigger (a factory reset); a config entity is a setting
+    if prop.category == "diagnostic" and (not prop.writable or prop.type == "trigger"):
         return "diagnostic"
     if prop.category == "config" and prop.writable:
         return "config"
@@ -118,7 +120,7 @@ def _generic(desc: Descriptor, prop: Prop, unique_id: str) -> EntitySpec:
     )
     if prop.type == "binary":
         platform = "switch" if prop.rw else "binary_sensor"
-        return EntitySpec(platform=platform, device_class=prop.klass if not prop.rw else None, **common)
+        return EntitySpec(platform=platform, device_class=prop.klass, **common)
     if prop.type == "number":
         if prop.rw:
             return EntitySpec(
@@ -133,20 +135,27 @@ def _generic(desc: Descriptor, prop: Prop, unique_id: str) -> EntitySpec:
     if prop.type == "select":
         if prop.rw:
             return EntitySpec(platform="select", options=prop.options, **common)
-        return EntitySpec(platform="sensor", options=prop.options, **common)
+        # a read-only select is an enumeration sensor
+        return EntitySpec(platform="sensor", device_class="enum", options=prop.options, **common)
     if prop.type == "text":
         return EntitySpec(platform="text" if prop.rw else "sensor", **common)
-    return EntitySpec(platform="button", **common)  # trigger
+    if prop.type == "event":
+        return EntitySpec(platform="event", device_class=prop.klass, options=prop.options, **common)
+    return EntitySpec(platform="button", device_class=prop.klass, **common)  # trigger
 
 
-def _composite(desc: Descriptor, uid) -> tuple[EntitySpec | None, set[str]]:
-    """The composite entity of the device's kind, and the properties it owns."""
-    rule = _COMPOSITES.get(desc.kind or "")
+def _composite(
+    desc: Descriptor, uid, kind: str | None, klass: str | None, props: Mapping[str, Prop],
+    key: str | None = None, name: str | None = None,
+) -> tuple[EntitySpec | None, set[str]]:
+    """The composite entity of one unit (the device itself, or a group with its own `kind`), and
+    the properties it owns. `props` are the unit's properties; roles are looked up among them only."""
+    rule = _COMPOSITES.get(kind or "")
     if rule is None:
         return None, set()
     platform, owned_roles, shared_roles, needed = rule
     by_role: dict[str, Prop] = {}
-    for prop in desc.props.values():
+    for prop in props.values():
         if prop.role and prop.role not in by_role:
             by_role[prop.role] = prop
     if platform == "climate":
@@ -155,9 +164,10 @@ def _composite(desc: Descriptor, uid) -> tuple[EntitySpec | None, set[str]]:
     elif platform == "cover":
         if not {"position", "open", "close"} & by_role.keys():
             return None, set()
-    elif platform == "lock":
-        # a lock that cannot be written is a plain binary sensor: a role never implies control
-        if "locked" not in by_role or not by_role["locked"].writable:
+    elif platform in ("lock", "valve"):
+        # a lock or valve that cannot be written is a plain binary sensor: a role never implies control
+        role = "locked" if platform == "lock" else "opened"
+        if role not in by_role or not by_role[role].writable:
             return None, set()
     elif not all(r in by_role for r in needed):
         return None, set()
@@ -172,14 +182,15 @@ def _composite(desc: Descriptor, uid) -> tuple[EntitySpec | None, set[str]]:
         target = by_role["target_humidity"]
         extra = dict(
             min=target.min, max=target.max, step=target.step,
-            device_class="dehumidifier" if desc.klass == "dehumidifier" else "humidifier",
+            device_class="dehumidifier" if klass == "dehumidifier" else "humidifier",
         )
     elif platform == "cover":
-        extra = dict(device_class=_COVER_CLASSES.get(desc.klass or "", desc.klass))
+        extra = dict(device_class=_COVER_CLASSES.get(klass or "", klass))
     elif platform == "lock":
         extra = dict(requires=by_role["locked"].requires)
+    key = key or platform
     spec = EntitySpec(
-        platform=platform, key=platform, unique_id=uid(platform), name=None,
+        platform=platform, key=key, unique_id=uid(key), name=name,
         slots=slots, shared=shared, **extra,
     )
     return spec, set(slots.values())
@@ -196,9 +207,24 @@ def plan_entities(
         return f"{desc.id}-{aliases.get(key, key)}"
 
     specs: list[EntitySpec] = []
-    composite, owned = _composite(desc, uid)
+    owned: set[str] = set()
+    # A group with its own `kind` is a composite of its own (a light and a cover on one device);
+    # the device's `kind` covers every property that is not in such a group.
+    kinded = {name for name in desc.groups}
+    rest = {n: p for n, p in desc.props.items() if p.group not in kinded}
+    composite, taken = _composite(desc, uid, desc.kind, desc.klass, rest)
     if composite is not None:
         specs.append(composite)
+        owned |= taken
+    for group in desc.groups.values():
+        members = {n: p for n, p in desc.props.items() if p.group == group.name}
+        spec, taken = _composite(
+            desc, uid, group.kind, group.klass or desc.klass, members,
+            key=group.name, name=group.label or humanize(group.name),
+        )
+        if spec is not None:
+            specs.append(spec)
+            owned |= taken
     for prop in desc.props.values():
         if prop.role == "available" or prop.name in owned:
             continue

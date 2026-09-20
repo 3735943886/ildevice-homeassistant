@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-# The five value types of the IL. A property of any other type is skipped, not an error.
-TYPES = ("binary", "number", "select", "text", "trigger")
+# The six value types of the IL. A property of any other type is skipped, not an error.
+TYPES = ("binary", "number", "select", "text", "trigger", "event")
 
 
 class DescriptorError(ValueError):
@@ -38,6 +38,16 @@ class Prop:
 
 
 @dataclass(frozen=True)
+class Group:
+    """A named sub-unit of properties (`group`) that is its own composite: it has its own `kind`."""
+
+    name: str
+    kind: str
+    klass: str | None
+    label: str | None
+
+
+@dataclass(frozen=True)
 class Descriptor:
     il: int
     id: str
@@ -50,6 +60,8 @@ class Descriptor:
     identifiers: dict[str, str]
     props: dict[str, Prop]
     x_mqtt: dict[str, str]
+    groups: dict[str, Group] = field(default_factory=dict)
+    """Groups that carry a `kind`; a group without one is only a label for its properties."""
 
 
 def _opt_str(value: Any) -> str | None:
@@ -108,6 +120,12 @@ def parse_descriptor(doc: Any) -> Descriptor:
         prop = _parse_prop(name, body)
         if prop is not None:
             props[name] = prop
+    groups = {}
+    raw_groups = doc.get("groups")
+    if isinstance(raw_groups, dict):
+        for gname, gbody in raw_groups.items():
+            if isinstance(gbody, dict) and _opt_str(gbody.get("kind")):
+                groups[gname] = Group(gname, gbody["kind"], _opt_str(gbody.get("class")), _opt_str(gbody.get("label")))
     il = doc.get("il")
     return Descriptor(
         il=il if isinstance(il, int) and not isinstance(il, bool) else 0,
@@ -121,4 +139,5 @@ def parse_descriptor(doc: Any) -> Descriptor:
         identifiers=_str_map(doc.get("identifiers")),
         props=props,
         x_mqtt=_str_map(doc.get("x-mqtt")),
+        groups=groups,
     )

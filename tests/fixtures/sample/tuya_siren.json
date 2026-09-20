@@ -1,0 +1,24 @@
+{
+  "il": 0,
+  "id": "siren01",
+  "source": "rustuya",
+  "kind": "siren",
+  "vendor": "Tuya",
+  "identifiers": {
+    "tuya_id": "siren01"
+  },
+  "props": {
+    "switch": {
+      "type": "binary",
+      "rw": true,
+      "role": "on",
+      "x-mqtt": {
+        "state": "tuya/siren01/switch",
+        "set": "tuya/siren01/switch/set"
+      }
+    }
+  },
+  "x-mqtt": {
+    "reject": "tuya/siren01/reject"
+  }
+}

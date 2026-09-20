@@ -1,0 +1,27 @@
+{
+  "il": 0,
+  "id": "btn01",
+  "source": "rustuya",
+  "kind": "remote",
+  "vendor": "Tuya",
+  "identifiers": {
+    "tuya_id": "btn01"
+  },
+  "props": {
+    "button": {
+      "type": "event",
+      "options": [
+        "click",
+        "double_click",
+        "long_press"
+      ],
+      "label": "Button",
+      "x-mqtt": {
+        "state": "tuya/btn01/button"
+      }
+    }
+  },
+  "x-mqtt": {
+    "reject": "tuya/btn01/reject"
+  }
+}

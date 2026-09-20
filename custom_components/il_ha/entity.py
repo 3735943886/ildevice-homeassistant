@@ -6,7 +6,8 @@ from typing import Any
 
 from homeassistant.components import mqtt
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
-from homeassistant.components.button import ButtonEntity
+from homeassistant.components.event import EventDeviceClass, EventEntity
+from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
 from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
     ClimateEntity,
@@ -35,10 +36,12 @@ from homeassistant.components.light import (
     LightEntity,
 )
 from homeassistant.components.lock import LockEntity, LockEntityFeature
+from homeassistant.components.siren import SirenEntity, SirenEntityFeature
+from homeassistant.components.valve import ValveEntity, ValveEntityFeature
 from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
 from homeassistant.components.select import SelectEntity
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.components.text import TextEntity
 from homeassistant.const import ATTR_TEMPERATURE, EntityCategory, UnitOfTemperature
 from homeassistant.core import callback
@@ -54,7 +57,7 @@ from homeassistant.util.percentage import (
 from .const import DOMAIN
 from .core import EntitySpec, encode_command
 from .core.topics import set_topic
-from .hub import Device, IlHub, signal
+from .hub import Device, IlHub, event_signal, signal
 
 
 def _enum(cls, value):
@@ -133,6 +136,8 @@ class IlSensor(IlEntity, SensorEntity):
         self._attr_device_class = _enum(SensorDeviceClass, spec.device_class)
         self._attr_state_class = _enum(SensorStateClass, spec.state_class)
         self._attr_native_unit_of_measurement = spec.unit
+        if self._attr_device_class == SensorDeviceClass.ENUM:
+            self._attr_options = list(spec.options)
 
     @property
     def native_value(self) -> Any:
@@ -150,6 +155,10 @@ class IlBinarySensor(IlEntity, BinarySensorEntity):
 
 
 class IlSwitch(IlEntity, SwitchEntity):
+    def __init__(self, hub, dev, spec) -> None:
+        super().__init__(hub, dev, spec)
+        self._attr_device_class = _enum(SwitchDeviceClass, spec.device_class)
+
     @property
     def is_on(self) -> bool | None:
         return self._v()
@@ -207,8 +216,33 @@ class IlText(IlEntity, TextEntity):
 
 
 class IlButton(IlEntity, ButtonEntity):
+    def __init__(self, hub, dev, spec) -> None:
+        super().__init__(hub, dev, spec)
+        self._attr_device_class = _enum(ButtonDeviceClass, spec.device_class)
+
     async def async_press(self) -> None:
         await self._write("value")
+
+
+class IlEvent(IlEntity, EventEntity):
+    def __init__(self, hub, dev, spec) -> None:
+        super().__init__(hub, dev, spec)
+        self._attr_event_types = list(spec.options)
+        self._attr_device_class = _enum(EventDeviceClass, spec.device_class)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, event_signal(self.dev.desc.id, self.spec.key), self._occurred
+            )
+        )
+
+    @callback
+    def _occurred(self, kind: str) -> None:
+        if kind in self._attr_event_types:
+            self._trigger_event(kind)
+            self.async_write_ha_state()
 
 
 # ---- composites -----------------------------------------------------------------------
@@ -564,6 +598,36 @@ class IlLock(IlEntity, LockEntity):
         await self._write("unlatch")
 
 
+class IlSiren(IlEntity, SirenEntity):
+    _attr_supported_features = SirenEntityFeature.TURN_ON | SirenEntityFeature.TURN_OFF
+
+    @property
+    def is_on(self) -> bool | None:
+        return self._v("on")
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._write("on", True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._write("on", False)
+
+
+class IlValve(IlEntity, ValveEntity):
+    _attr_reports_position = False
+    _attr_supported_features = ValveEntityFeature.OPEN | ValveEntityFeature.CLOSE
+
+    @property
+    def is_closed(self) -> bool | None:
+        opened = self._v("opened")
+        return None if opened is None else not opened
+
+    async def async_open_valve(self, **kwargs: Any) -> None:
+        await self._write("opened", True)
+
+    async def async_close_valve(self, **kwargs: Any) -> None:
+        await self._write("opened", False)
+
+
 ENTITY_CLASSES = {
     "sensor": IlSensor,
     "binary_sensor": IlBinarySensor,
@@ -572,10 +636,13 @@ ENTITY_CLASSES = {
     "select": IlSelect,
     "text": IlText,
     "button": IlButton,
+    "event": IlEvent,
     "climate": IlClimate,
     "humidifier": IlHumidifier,
     "fan": IlFan,
     "light": IlLight,
     "cover": IlCover,
     "lock": IlLock,
+    "siren": IlSiren,
+    "valve": IlValve,
 }
