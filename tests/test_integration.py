@@ -4,6 +4,7 @@ import json
 from datetime import timedelta
 
 import pytest
+from homeassistant.config_entries import SOURCE_IGNORE
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -24,7 +25,7 @@ def _custom(enable_custom_integrations, mock_hass_config):
 
 
 async def setup(hass, **options):
-    entry = MockConfigEntry(domain=DOMAIN, options={"il_prefix": "il", **options})
+    entry = MockConfigEntry(domain=DOMAIN, options={"il_prefix": "il", "auto_add": True, **options})
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -350,3 +351,102 @@ async def test_a_device_from_another_producer_needs_no_code_of_its_own(hass, mqt
     async_fire_mqtt_message(hass, "tuya/bf3a91c0d2e4/reject", json.dumps({"prop": "countdown_1", "reason": "above the maximum of 86400"}))
     await hass.async_block_till_done()
     assert events[0]["reason"] == "above the maximum of 86400"
+
+
+# ---- asking before adding a device -----------------------------------------------------
+
+
+def offers(hass):
+    return hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+
+
+def device_ids(hass):
+    return {i[1] for d in dr.async_get(hass).devices for i in d.identifiers if i[0] == DOMAIN}
+
+
+async def test_a_new_device_is_offered_and_not_created(hass, mqtt_mock):
+    await setup(hass, auto_add=False)
+    announce(hass, descriptor("DHUM_056905_WW", "dhum1"))
+    await hass.async_block_till_done()
+
+    assert device_ids(hass) == set()
+    (flow,) = offers(hass)
+    assert flow["context"]["unique_id"] == "dhum1"
+    assert flow["context"]["title_placeholders"]["name"]
+
+
+async def test_adding_the_offered_device_creates_it(hass, mqtt_mock):
+    entry = await setup(hass, auto_add=False)
+    doc = descriptor("DHUM_056905_WW", "dhum1")
+    announce(hass, doc)
+    await hass.async_block_till_done()
+    (flow,) = offers(hass)
+
+    result = await hass.config_entries.flow.async_configure(flow["flow_id"], {})
+    assert result["reason"] == "device_added"
+    await hass.async_block_till_done()
+    assert entry.options["devices"] == ["dhum1"]
+
+    announce(hass, doc)  # the retained descriptor arrives again as the entry reloads
+    await hass.async_block_till_done()
+    assert device_ids(hass) == {"dhum1"}
+    entity_id(hass, "humidifier", "dhum1-humidifier")
+    assert offers(hass) == []
+
+
+async def test_an_ignored_device_is_not_offered_again(hass, mqtt_mock):
+    entry = await setup(hass, auto_add=False)
+    doc = descriptor("DHUM_056905_WW", "dhum1")
+    announce(hass, doc)
+    await hass.async_block_till_done()
+    await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_IGNORE}, data={"unique_id": "dhum1", "title": "Dehumidifier"}
+    )
+    await hass.async_block_till_done()
+    assert offers(hass) == []
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    announce(hass, doc)
+    await hass.async_block_till_done()
+    assert offers(hass) == [] and device_ids(hass) == set()
+
+
+async def test_devices_already_registered_stay_when_the_question_is_introduced(hass, mqtt_mock):
+    entry = MockConfigEntry(domain=DOMAIN, options={"il_prefix": "il"})  # an entry from before
+    entry.add_to_hass(hass)
+    dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={(DOMAIN, "dhum1")}
+    )
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.options["devices"] == ["dhum1"]
+
+    announce(hass, descriptor("DHUM_056905_WW", "dhum1"))
+    announce(hass, descriptor("CST_570004_WW", "ac9"))
+    await hass.async_block_till_done()
+    assert "dhum1" in device_ids(hass)
+    assert [f["context"]["unique_id"] for f in offers(hass)] == ["ac9"]
+
+
+async def test_deleting_a_device_makes_it_a_new_offer(hass, mqtt_mock):
+    from custom_components.il_ha import async_remove_config_entry_device
+
+    entry = await setup(hass, auto_add=False, devices=["dhum1"])
+    announce(hass, descriptor("DHUM_056905_WW", "dhum1"))
+    await hass.async_block_till_done()
+    (device,) = list(dr.async_get(hass).devices)
+
+    assert await async_remove_config_entry_device(hass, entry, device)
+    assert entry.options["devices"] == []
+
+
+async def test_turning_the_question_off_and_on_keeps_the_devices_that_were_there(hass, mqtt_mock):
+    entry = await setup(hass)  # adds automatically
+    announce(hass, descriptor("DHUM_056905_WW", "dhum1"))
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"il_prefix": "il", "offline_grace": 0, "aliases": "", "auto_add": False}
+    )
+    assert result["data"]["devices"] == ["dhum1"]

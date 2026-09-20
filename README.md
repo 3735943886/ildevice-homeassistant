@@ -20,6 +20,15 @@ descriptor alone.
   outage from showing.
 - An empty descriptor removes the device; a changed one re-plans its entities.
 
+## Adding devices
+
+A device that publishes a descriptor is not created at once. Home Assistant shows it under
+"Discovered" (named after the descriptor's `label`), and you add it or ignore it. An ignored device
+is not offered again. Deleting a device in Home Assistant makes it a new offer the next time it
+appears. The option "Add discovered devices automatically" skips the question and creates every
+device, and turning it off keeps the devices it had added. An entry set up before this existed keeps
+the devices it already had.
+
 ## Layout
 
 ```

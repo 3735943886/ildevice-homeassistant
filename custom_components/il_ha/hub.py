@@ -9,7 +9,9 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from homeassistant.components import mqtt
+from homeassistant.config_entries import SOURCE_INTEGRATION_DISCOVERY
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.helpers import discovery_flow
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later
@@ -50,11 +52,16 @@ class IlHub:
         il_prefix: str,
         offline_grace: int,
         aliases: dict[str, dict[str, str]],
+        auto_add: bool = True,
+        allowed: set[str] | None = None,
     ) -> None:
         self.hass = hass
         self.il_prefix = il_prefix
         self.offline_grace = offline_grace
         self.aliases = aliases
+        self.auto_add = auto_add
+        self.allowed = allowed or set()
+        self._asked: set[str] = set()
         self.devices: dict[str, Device] = {}
         self._adders: dict[str, Callable] = {}
         self._pending: dict[str, list] = {}
@@ -115,10 +122,29 @@ class IlHub:
                 return
             if desc.id != device_id:
                 _LOGGER.warning("the descriptor on %s carries the id %s", msg.topic, desc.id)
+            if not self.auto_add and desc.id not in self.allowed:
+                self._discover(desc)
+                return
             known = self.devices.get(desc.id)
             if known is not None and known.doc == doc:
                 return
             await self._setup_device(desc, doc, known)
+
+    def _discover(self, desc: Descriptor) -> None:
+        """A device the user has not added: offer it (add / ignore) instead of creating it."""
+        if desc.id in self._asked:
+            return
+        self._asked.add(desc.id)
+        discovery_flow.async_create_flow(
+            self.hass,
+            DOMAIN,
+            context={"source": SOURCE_INTEGRATION_DISCOVERY},
+            data={
+                "device_id": desc.id,
+                "label": desc.label or desc.model or desc.id,
+                "model": desc.model or "",
+            },
+        )
 
     def _aliases_for(self, desc: Descriptor) -> dict[str, str]:
         merged = dict(self.aliases.get("*", {}))
@@ -174,6 +200,10 @@ class IlHub:
                 registry.async_remove(entry.entity_id)
 
     async def _remove_device(self, device_id: str) -> None:
+        self._asked.discard(device_id)
+        for flow in self.hass.config_entries.flow.async_progress_by_handler(DOMAIN):
+            if flow["context"].get("unique_id") == device_id:
+                self.hass.config_entries.flow.async_abort(flow["flow_id"])
         dev = self.devices.pop(device_id, None)
         if dev is None:
             return

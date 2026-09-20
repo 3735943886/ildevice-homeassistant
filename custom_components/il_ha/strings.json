@@ -7,15 +7,28 @@
         "data": {
           "il_prefix": "Topic prefix",
           "offline_grace": "Seconds before a device is shown unavailable",
-          "aliases": "Legacy entity ids (JSON)"
+          "aliases": "Legacy entity ids (JSON)",
+          "auto_add": "Add discovered devices automatically"
         },
         "data_description": {
-          "aliases": "{\"<model or *>\": {\"<entity key>\": \"<key an earlier integration used>\"}}, to keep existing unique ids."
+          "aliases": "{\"<model or *>\": {\"<entity key>\": \"<key an earlier integration used>\"}}, to keep existing unique ids.",
+          "auto_add": "When off, each new device is offered first, and can be added or ignored."
         }
+      },
+      "discovery_confirm": {
+        "title": "Add {name}?",
+        "description": "{name} ({model}) is publishing an Intermediate Layer descriptor. Add it to Home Assistant?"
       }
     },
-    "error": { "bad_aliases": "Not a JSON object of objects of strings." },
-    "abort": { "already_configured": "Already set up." }
+    "error": {
+      "bad_aliases": "Not a JSON object of objects of strings."
+    },
+    "abort": {
+      "already_configured": "Already set up.",
+      "device_added": "The device was added.",
+      "no_hub": "Set up the integration first."
+    },
+    "flow_title": "{name}"
   },
   "options": {
     "step": {
@@ -23,10 +36,16 @@
         "data": {
           "il_prefix": "Topic prefix",
           "offline_grace": "Seconds before a device is shown unavailable",
-          "aliases": "Legacy entity ids (JSON)"
+          "aliases": "Legacy entity ids (JSON)",
+          "auto_add": "Add discovered devices automatically"
+        },
+        "data_description": {
+          "auto_add": "When off, each new device is offered first, and can be added or ignored."
         }
       }
     },
-    "error": { "bad_aliases": "Not a JSON object of objects of strings." }
+    "error": {
+      "bad_aliases": "Not a JSON object of objects of strings."
+    }
   }
 }

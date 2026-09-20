@@ -11,6 +11,8 @@ from homeassistant.core import callback
 
 from .const import (
     CONF_ALIASES,
+    CONF_AUTO_ADD,
+    CONF_DEVICES,
     CONF_IL_PREFIX,
     CONF_OFFLINE_GRACE,
     DEFAULT_IL_PREFIX,
@@ -19,12 +21,13 @@ from .const import (
 )
 
 
-def _schema(prefix: str, grace: int, aliases: str) -> vol.Schema:
+def _schema(prefix: str, grace: int, aliases: str, auto_add: bool) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(CONF_IL_PREFIX, default=prefix): str,
             vol.Required(CONF_OFFLINE_GRACE, default=grace): vol.All(int, vol.Range(min=0, max=3600)),
             vol.Optional(CONF_ALIASES, default=aliases): str,
+            vol.Required(CONF_AUTO_ADD, default=auto_add): bool,
         }
     )
 
@@ -52,12 +55,40 @@ class IlConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             if _check_aliases(user_input.get(CONF_ALIASES, "")):
-                return self.async_create_entry(title="Intermediate Layer", data={}, options=user_input)
+                return self.async_create_entry(
+                    title="Intermediate Layer", data={}, options={**user_input, CONF_DEVICES: []}
+                )
             errors[CONF_ALIASES] = "bad_aliases"
         return self.async_show_form(
             step_id="user",
-            data_schema=_schema(DEFAULT_IL_PREFIX, DEFAULT_OFFLINE_GRACE, ""),
+            data_schema=_schema(DEFAULT_IL_PREFIX, DEFAULT_OFFLINE_GRACE, "", False),
             errors=errors,
+        )
+
+    async def async_step_integration_discovery(self, discovery_info: dict[str, Any]) -> ConfigFlowResult:
+        """A device published a descriptor and the user has not added it yet."""
+        await self.async_set_unique_id(discovery_info["device_id"])
+        self._abort_if_unique_id_configured()  # also true for a device the user chose to ignore
+        self._device = discovery_info
+        self.context["title_placeholders"] = {"name": discovery_info["label"]}
+        return await self.async_step_discovery_confirm()
+
+    async def async_step_discovery_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        device = self._device
+        if user_input is not None:
+            entries = self._async_current_entries(include_ignore=False)
+            if not entries:
+                return self.async_abort(reason="no_hub")
+            hub = entries[0]
+            devices = list(hub.options.get(CONF_DEVICES, []))
+            if device["device_id"] not in devices:
+                devices.append(device["device_id"])
+            self.hass.config_entries.async_update_entry(hub, options={**hub.options, CONF_DEVICES: devices})
+            return self.async_abort(reason="device_added")
+        self._set_confirm_only()
+        return self.async_show_form(
+            step_id="discovery_confirm",
+            description_placeholders={"name": device["label"], "model": device["model"] or "?"},
         )
 
     @staticmethod
@@ -71,7 +102,12 @@ class IlOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
         if user_input is not None:
             if _check_aliases(user_input.get(CONF_ALIASES, "")):
-                return self.async_create_entry(data=user_input)
+                devices = set(self.config_entry.options.get(CONF_DEVICES, []))
+                hub = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
+                if hub is not None and not user_input[CONF_AUTO_ADD]:
+                    # Turning "add automatically" off keeps the devices it added.
+                    devices |= set(hub.devices)
+                return self.async_create_entry(data={**user_input, CONF_DEVICES: sorted(devices)})
             errors[CONF_ALIASES] = "bad_aliases"
         o = self.config_entry.options
         return self.async_show_form(
@@ -80,6 +116,7 @@ class IlOptionsFlow(OptionsFlow):
                 o.get(CONF_IL_PREFIX, DEFAULT_IL_PREFIX),
                 o.get(CONF_OFFLINE_GRACE, DEFAULT_OFFLINE_GRACE),
                 o.get(CONF_ALIASES, ""),
+                o.get(CONF_AUTO_ADD, False),
             ),
             errors=errors,
         )
