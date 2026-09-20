@@ -189,6 +189,51 @@ def test_a_climate_without_temperatures_falls_back_to_plain_entities():
     assert [s.platform for s in plan_entities(desc)] == ["switch"]
 
 
+def sample(name, aliases=None):
+    desc = parse_descriptor(load(f"sample/{name}.json"))
+    return desc, plan_entities(desc, aliases)
+
+
+def test_a_light_owns_its_roles():
+    _, specs = sample("tuya_light")
+    light = by_key(specs)["light"]
+    assert light.platform == "light"
+    assert dict(light.slots) == {
+        "on": "power", "brightness": "bright", "color_temperature": "temp",
+        "color": "colour", "color_mode": "mode",
+    }
+    assert [s.platform for s in specs] == ["light"]
+
+
+def test_a_cover_needs_a_position_or_a_way_to_open_and_close():
+    _, specs = sample("tuya_curtain")
+    cover = by_key(specs)["cover"]
+    assert cover.platform == "cover" and cover.device_class == "curtain"
+    assert dict(cover.slots) == {
+        "position": "position", "motion": "motion", "open": "open", "close": "close", "stop": "stop",
+    }
+    desc = parse_descriptor({"id": "x", "kind": "cover", "props": {"m": {"type": "select", "role": "motion", "options": ["stopped"]}}})
+    assert [s.platform for s in plan_entities(desc)] == ["sensor"]
+
+
+def test_a_garage_door_is_the_garage_device_class():
+    desc = parse_descriptor(
+        {"id": "x", "kind": "cover", "class": "garage_door", "props": {"o": {"type": "trigger", "role": "open"}}}
+    )
+    assert by_key(plan_entities(desc))["cover"].device_class == "garage"
+
+
+def test_a_lock_is_only_a_lock_when_it_can_be_written():
+    _, specs = sample("tuya_lock")
+    lock = by_key(specs)["lock"]
+    assert lock.platform == "lock" and dict(lock.slots) == {"locked": "locked", "unlatch": "unlatch"}
+    assert by_key(specs)["battery"].platform == "sensor"
+    desc = parse_descriptor(
+        {"id": "x", "kind": "lock", "props": {"l": {"type": "binary", "role": "locked"}, "u": {"type": "trigger", "role": "unlatch"}}}
+    )
+    assert {s.key: s.platform for s in plan_entities(desc)} == {"l": "binary_sensor", "u": "button"}
+
+
 # ---- planning: plain entities ---------------------------------------------------------
 
 

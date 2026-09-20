@@ -1,7 +1,7 @@
 """Which entities a descriptor becomes.
 
 A device's *kind* and the *roles* of its properties decide the composite entities (a `climate`,
-a `humidifier`, a `fan`); every other property becomes a plain entity chosen by its type, and
+a `humidifier`, a `fan`, a `light`, a `cover`, a `lock`); every other property becomes a plain entity chosen by its type, and
 its `class` / `series` / `category` say how it is classified. Nothing here looks at a model or a
 producer, so a device from any producer is planned the same way.
 """
@@ -17,8 +17,8 @@ from .descriptor import Descriptor, Prop
 @dataclass(frozen=True)
 class EntitySpec:
     platform: str
-    """`climate`, `humidifier`, `fan`, `sensor`, `binary_sensor`, `switch`, `number`, `select`,
-    `text` or `button`."""
+    """`climate`, `humidifier`, `fan`, `light`, `cover`, `lock`, `sensor`, `binary_sensor`,
+    `switch`, `number`, `select`, `text` or `button`."""
     key: str
     """Stable name of the entity within its device (the property name, or the composite's
     platform)."""
@@ -62,7 +62,28 @@ _COMPOSITES = {
         (),
         ("on",),
     ),
+    "light": (
+        "light",
+        ("on", "brightness", "color_temperature", "color", "color_mode"),
+        (),
+        ("on",),
+    ),
+    "cover": (
+        "cover",
+        ("position", "tilt", "motion", "open", "close", "stop"),
+        (),
+        (),
+    ),
+    "lock": (
+        "lock",
+        ("locked", "unlatch"),
+        (),
+        ("locked",),
+    ),
 }
+
+# a descriptor `class` -> the device class Home Assistant knows it as
+_COVER_CLASSES = {"garage_door": "garage"}
 
 
 def humanize(name: str) -> str:
@@ -131,6 +152,13 @@ def _composite(desc: Descriptor, uid) -> tuple[EntitySpec | None, set[str]]:
     if platform == "climate":
         if not (any(r in by_role for r in needed) and ("on" in by_role or "mode" in by_role)):
             return None, set()
+    elif platform == "cover":
+        if not {"position", "open", "close"} & by_role.keys():
+            return None, set()
+    elif platform == "lock":
+        # a lock that cannot be written is a plain binary sensor: a role never implies control
+        if "locked" not in by_role or not by_role["locked"].writable:
+            return None, set()
     elif not all(r in by_role for r in needed):
         return None, set()
     slots = {r: by_role[r].name for r in owned_roles if r in by_role}
@@ -146,6 +174,10 @@ def _composite(desc: Descriptor, uid) -> tuple[EntitySpec | None, set[str]]:
             min=target.min, max=target.max, step=target.step,
             device_class="dehumidifier" if desc.klass == "dehumidifier" else "humidifier",
         )
+    elif platform == "cover":
+        extra = dict(device_class=_COVER_CLASSES.get(desc.klass or "", desc.klass))
+    elif platform == "lock":
+        extra = dict(requires=by_role["locked"].requires)
     spec = EntitySpec(
         platform=platform, key=platform, unique_id=uid(platform), name=None,
         slots=slots, shared=shared, **extra,

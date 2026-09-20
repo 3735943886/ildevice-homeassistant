@@ -1,21 +1,27 @@
-# il-ha
+# ildevice for Home Assistant (il-ha)
 
-A Home Assistant integration that turns [IL](https://github.com/3735943886/il) descriptors into
-entities. It knows nothing about any one producer or model: a device from rusthinq, rustuya or
-anything else that publishes an IL descriptor over MQTT gets its device and entities from the
-descriptor alone.
+A Home Assistant integration for [ildevice](https://github.com/3735943886/ildevice) (Intermediate
+Layer device model). It turns the ildevice descriptors that producers publish over MQTT into
+Home Assistant devices and entities. It knows nothing about any one producer or model: a device
+from rusthinq, rustuya or anything else that publishes a descriptor gets its device and entities
+from the descriptor alone.
 
 ## How it works
 
-- It subscribes to `<il_prefix>/+` (the retained descriptors) and, for each device, to the value
-  topics and the `reject` topic the descriptor points at (`x-mqtt`, see the IL's `il-mqtt.md`).
+- It subscribes to `<il_prefix>/+` (the retained ildevice descriptors) and, for each device, to the value
+  topics and the `reject` topic the descriptor points at (`x-mqtt`, see `il-mqtt.md` in the ildevice repo).
 - A device's **kind** and the **roles** of its properties decide the composite entities:
-  `climate`, `humidifier` (a dehumidifier is class `dehumidifier`), `fan`. Every other property is
+  `climate`, `humidifier` (a dehumidifier is class `dehumidifier`), `fan`, `light`, `cover`, `lock`.
+  Every other property is
   a plain entity chosen by its type: `sensor` / `binary_sensor` / `switch` / `number` / `select` /
   `text` / `button`. `class`, `series` and `category` become `device_class`, `state_class` and
   `entity_category`.
 - A control whose property has `requires` is unavailable until the property it names is true.
   A refused command arrives as an `il_ha_command_rejected` event (`device_id`, `prop`, `reason`).
+- A `light` is `on` plus whichever of `brightness`, `color_temperature`, `color` it has; the
+  supported modes follow from which roles exist. A `cover` needs `position`, `open` or `close`
+  (without `open`/`close` it moves by writing `position` 100 / 0). A `lock` is created only when
+  `locked` is writable; a read-only one stays a binary sensor, so a role never implies control.
 - Availability is the device's `available` property. `offline_grace` (seconds) keeps a short
   outage from showing.
 - An empty descriptor removes the device; a changed one re-plans its entities.
@@ -60,6 +66,6 @@ The fixtures under `tests/fixtures/rusthinq/` are the descriptors the rusthinq d
 
 ## Not yet
 
-- `light`, `cover`, `lock`: the IL has no roles for brightness, colour, position yet. They are
-  added to the IL when a producer needs them.
+- Lock states between locked and unlocked (locking, unlocking, jammed), and covers that report
+  no position but a closed state: the ildevice has no roles for them yet.
 - Moving an existing MQTT-discovery entity onto this integration without losing its history.

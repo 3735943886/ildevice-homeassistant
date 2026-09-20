@@ -14,12 +14,27 @@ from homeassistant.components.climate import (
     HVACAction,
     HVACMode,
 )
+from homeassistant.components.cover import (
+    ATTR_POSITION,
+    ATTR_TILT_POSITION,
+    CoverDeviceClass,
+    CoverEntity,
+    CoverEntityFeature,
+)
 from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.components.humidifier import (
     HumidifierDeviceClass,
     HumidifierEntity,
     HumidifierEntityFeature,
 )
+from homeassistant.components.light import (
+    ATTR_BRIGHTNESS,
+    ATTR_COLOR_TEMP_KELVIN,
+    ATTR_HS_COLOR,
+    ColorMode,
+    LightEntity,
+)
+from homeassistant.components.lock import LockEntity, LockEntityFeature
 from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
 from homeassistant.components.select import SelectEntity
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
@@ -30,6 +45,7 @@ from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
+from homeassistant.util.color import color_hs_to_RGB, color_RGB_to_hs
 from homeassistant.util.percentage import (
     ordered_list_item_to_percentage,
     percentage_to_ordered_list_item,
@@ -394,6 +410,160 @@ class IlFan(IlEntity, FanEntity):
         await self._write("mode", preset_mode)
 
 
+class IlLight(IlEntity, LightEntity):
+    def __init__(self, hub, dev, spec) -> None:
+        super().__init__(hub, dev, spec)
+        props = dev.desc.props
+        modes: set[ColorMode] = set()
+        if "color" in spec.slots:
+            modes.add(ColorMode.HS)
+        if "color_temperature" in spec.slots:
+            modes.add(ColorMode.COLOR_TEMP)
+            ct = props[spec.slots["color_temperature"]]
+            if ct.min is not None:
+                self._attr_min_color_temp_kelvin = int(ct.min)
+            if ct.max is not None:
+                self._attr_max_color_temp_kelvin = int(ct.max)
+        if not modes:
+            modes.add(ColorMode.BRIGHTNESS if "brightness" in spec.slots else ColorMode.ONOFF)
+        self._attr_supported_color_modes = modes
+        self._lowest = 1
+        if "brightness" in spec.slots and props[spec.slots["brightness"]].min:
+            self._lowest = max(1, round(props[spec.slots["brightness"]].min))
+
+    @property
+    def is_on(self) -> bool | None:
+        return self._v("on")
+
+    @property
+    def brightness(self) -> int | None:
+        value = self._v("brightness")
+        return None if value is None else round(value * 255 / 100)
+
+    @property
+    def color_mode(self) -> ColorMode:
+        modes = self._attr_supported_color_modes
+        if len(modes) == 1:
+            return next(iter(modes))
+        return ColorMode.HS if self._v("color_mode") == "color" else ColorMode.COLOR_TEMP
+
+    @property
+    def color_temp_kelvin(self) -> int | None:
+        value = self._v("color_temperature")
+        return None if value is None else round(value)
+
+    @property
+    def hs_color(self) -> tuple[float, float] | None:
+        text = self._v("color")
+        try:
+            rgb = tuple(int(text[i:i + 2], 16) for i in (1, 3, 5))
+        except (TypeError, ValueError):
+            return None
+        if not text.startswith("#") or len(text) != 7:
+            return None
+        return color_RGB_to_hs(*rgb)
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._write("on", True)
+        if ATTR_HS_COLOR in kwargs and "color" in self.spec.slots:
+            r, g, b = color_hs_to_RGB(*kwargs[ATTR_HS_COLOR])
+            await self._write("color", f"#{r:02x}{g:02x}{b:02x}")
+        if ATTR_COLOR_TEMP_KELVIN in kwargs and "color_temperature" in self.spec.slots:
+            await self._write("color_temperature", kwargs[ATTR_COLOR_TEMP_KELVIN])
+        if ATTR_BRIGHTNESS in kwargs and "brightness" in self.spec.slots:
+            percent = round(kwargs[ATTR_BRIGHTNESS] * 100 / 255)
+            await self._write("brightness", max(self._lowest, min(100, percent)))
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._write("on", False)
+
+
+class IlCover(IlEntity, CoverEntity):
+    def __init__(self, hub, dev, spec) -> None:
+        super().__init__(hub, dev, spec)
+        props = dev.desc.props
+        self._attr_device_class = _enum(CoverDeviceClass, spec.device_class)
+        position = props[spec.slots["position"]] if "position" in spec.slots else None
+        features = CoverEntityFeature(0)
+        if "open" in spec.slots or (position and position.writable):
+            features |= CoverEntityFeature.OPEN
+        if "close" in spec.slots or (position and position.writable):
+            features |= CoverEntityFeature.CLOSE
+        if "stop" in spec.slots:
+            features |= CoverEntityFeature.STOP
+        if position and position.writable:
+            features |= CoverEntityFeature.SET_POSITION
+        if "tilt" in spec.slots and props[spec.slots["tilt"]].writable:
+            features |= CoverEntityFeature.SET_TILT_POSITION
+        self._attr_supported_features = features
+        # without a position the cover never says where it is
+        self._attr_assumed_state = position is None
+
+    @property
+    def current_cover_position(self) -> int | None:
+        return self._v("position")
+
+    @property
+    def current_cover_tilt_position(self) -> int | None:
+        return self._v("tilt")
+
+    @property
+    def is_closed(self) -> bool | None:
+        position = self._v("position")
+        return None if position is None else position == 0
+
+    @property
+    def is_opening(self) -> bool | None:
+        motion = self._v("motion")
+        return None if motion is None else motion == "opening"
+
+    @property
+    def is_closing(self) -> bool | None:
+        motion = self._v("motion")
+        return None if motion is None else motion == "closing"
+
+    async def async_open_cover(self, **kwargs: Any) -> None:
+        if "open" in self.spec.slots:
+            await self._write("open")
+        else:
+            await self._write("position", 100)
+
+    async def async_close_cover(self, **kwargs: Any) -> None:
+        if "close" in self.spec.slots:
+            await self._write("close")
+        else:
+            await self._write("position", 0)
+
+    async def async_stop_cover(self, **kwargs: Any) -> None:
+        await self._write("stop")
+
+    async def async_set_cover_position(self, **kwargs: Any) -> None:
+        await self._write("position", kwargs[ATTR_POSITION])
+
+    async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
+        await self._write("tilt", kwargs[ATTR_TILT_POSITION])
+
+
+class IlLock(IlEntity, LockEntity):
+    def __init__(self, hub, dev, spec) -> None:
+        super().__init__(hub, dev, spec)
+        if "unlatch" in spec.slots:
+            self._attr_supported_features = LockEntityFeature.OPEN
+
+    @property
+    def is_locked(self) -> bool | None:
+        return self._v("locked")
+
+    async def async_lock(self, **kwargs: Any) -> None:
+        await self._write("locked", True)
+
+    async def async_unlock(self, **kwargs: Any) -> None:
+        await self._write("locked", False)
+
+    async def async_open(self, **kwargs: Any) -> None:
+        await self._write("unlatch")
+
+
 ENTITY_CLASSES = {
     "sensor": IlSensor,
     "binary_sensor": IlBinarySensor,
@@ -405,4 +575,7 @@ ENTITY_CLASSES = {
     "climate": IlClimate,
     "humidifier": IlHumidifier,
     "fan": IlFan,
+    "light": IlLight,
+    "cover": IlCover,
+    "lock": IlLock,
 }

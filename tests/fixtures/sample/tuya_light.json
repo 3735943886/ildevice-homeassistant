@@ -1,0 +1,83 @@
+{
+  "il": 0,
+  "id": "light01",
+  "source": "rustuya",
+  "kind": "light",
+  "class": "bulb",
+  "label": "Bulb",
+  "vendor": "Tuya",
+  "model": "TS0505B",
+  "identifiers": {
+    "tuya_id": "light01"
+  },
+  "props": {
+    "available": {
+      "type": "binary",
+      "role": "available",
+      "x-mqtt": {
+        "state": "tuya/light01/available"
+      }
+    },
+    "power": {
+      "type": "binary",
+      "rw": true,
+      "role": "on",
+      "x-mqtt": {
+        "state": "tuya/light01/power",
+        "set": "tuya/light01/power/set"
+      }
+    },
+    "mode": {
+      "type": "select",
+      "rw": true,
+      "role": "color_mode",
+      "options": [
+        "white",
+        "color",
+        "scene"
+      ],
+      "x-mqtt": {
+        "state": "tuya/light01/mode",
+        "set": "tuya/light01/mode/set"
+      }
+    },
+    "bright": {
+      "type": "number",
+      "rw": true,
+      "role": "brightness",
+      "unit": "%",
+      "min": 1,
+      "max": 100,
+      "step": 1,
+      "x-mqtt": {
+        "state": "tuya/light01/bright",
+        "set": "tuya/light01/bright/set"
+      }
+    },
+    "temp": {
+      "type": "number",
+      "rw": true,
+      "role": "color_temperature",
+      "unit": "K",
+      "min": 2700,
+      "max": 6500,
+      "step": 1,
+      "x-mqtt": {
+        "state": "tuya/light01/temp",
+        "set": "tuya/light01/temp/set"
+      }
+    },
+    "colour": {
+      "type": "text",
+      "rw": true,
+      "role": "color",
+      "x-mqtt": {
+        "state": "tuya/light01/colour",
+        "set": "tuya/light01/colour/set"
+      }
+    }
+  },
+  "x-mqtt": {
+    "reject": "tuya/light01/reject"
+  }
+}

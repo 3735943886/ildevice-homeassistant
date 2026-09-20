@@ -1,0 +1,74 @@
+{
+  "il": 0,
+  "id": "curtain01",
+  "source": "rustuya",
+  "kind": "cover",
+  "class": "curtain",
+  "label": "Curtain",
+  "vendor": "Tuya",
+  "model": "TS130F",
+  "identifiers": {
+    "tuya_id": "curtain01"
+  },
+  "props": {
+    "available": {
+      "type": "binary",
+      "role": "available",
+      "x-mqtt": {
+        "state": "tuya/curtain01/available"
+      }
+    },
+    "position": {
+      "type": "number",
+      "rw": true,
+      "role": "position",
+      "unit": "%",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "x-mqtt": {
+        "state": "tuya/curtain01/position",
+        "set": "tuya/curtain01/position/set"
+      }
+    },
+    "motion": {
+      "type": "select",
+      "role": "motion",
+      "options": [
+        "opening",
+        "closing",
+        "stopped"
+      ],
+      "x-mqtt": {
+        "state": "tuya/curtain01/motion"
+      }
+    },
+    "open": {
+      "type": "trigger",
+      "role": "open",
+      "x-mqtt": {
+        "state": "tuya/curtain01/open",
+        "set": "tuya/curtain01/open/set"
+      }
+    },
+    "close": {
+      "type": "trigger",
+      "role": "close",
+      "x-mqtt": {
+        "state": "tuya/curtain01/close",
+        "set": "tuya/curtain01/close/set"
+      }
+    },
+    "stop": {
+      "type": "trigger",
+      "role": "stop",
+      "x-mqtt": {
+        "state": "tuya/curtain01/stop",
+        "set": "tuya/curtain01/stop/set"
+      }
+    }
+  },
+  "x-mqtt": {
+    "reject": "tuya/curtain01/reject"
+  }
+}

@@ -450,3 +450,109 @@ async def test_turning_the_question_off_and_on_keeps_the_devices_that_were_there
         result["flow_id"], {"il_prefix": "il", "offline_grace": 0, "aliases": "", "auto_add": False}
     )
     assert result["data"]["devices"] == ["dhum1"]
+
+
+# ---- light, cover and lock (a producer with its own topic layout) -----------------------
+
+
+def tuya(name):
+    return load(f"sample/{name}.json")
+
+
+def tuya_value(hass, device_id, prop, payload):
+    async_fire_mqtt_message(hass, f"tuya/{device_id}/{prop}", payload)
+
+
+async def test_a_light(hass, mqtt_mock):
+    await setup(hass)
+    announce(hass, tuya("tuya_light"))
+    await hass.async_block_till_done()
+    for prop, payload in (("available", "true"), ("power", "true"), ("bright", "50"),
+                          ("temp", "3000"), ("colour", "#ff0000"), ("mode", "white")):
+        tuya_value(hass, "light01", prop, payload)
+    await hass.async_block_till_done()
+    lid = entity_id(hass, "light", "light01-light")
+    state = hass.states.get(lid)
+    assert state.state == STATE_ON
+    assert state.attributes["brightness"] == 128
+    assert state.attributes["color_mode"] == "color_temp"
+    assert state.attributes["color_temp_kelvin"] == 3000
+    assert state.attributes["min_color_temp_kelvin"] == 2700
+    tuya_value(hass, "light01", "mode", "color")
+    await hass.async_block_till_done()
+    state = hass.states.get(lid)
+    assert state.attributes["color_mode"] == "hs" and state.attributes["hs_color"] == (0.0, 100.0)
+
+    await hass.services.async_call("light", "turn_on", {"entity_id": lid, "brightness": 255, "color_temp_kelvin": 4000}, blocking=True)
+    assert_published(mqtt_mock, "tuya/light01/power/set", "true")
+    assert_published(mqtt_mock, "tuya/light01/temp/set", "4000")
+    assert_published(mqtt_mock, "tuya/light01/bright/set", "100")
+    await hass.services.async_call("light", "turn_on", {"entity_id": lid, "hs_color": [120, 100]}, blocking=True)
+    assert_published(mqtt_mock, "tuya/light01/colour/set", "#00ff00")
+    # the dimmest step Home Assistant can ask for is still the device's lowest, not off
+    await hass.services.async_call("light", "turn_on", {"entity_id": lid, "brightness": 1}, blocking=True)
+    assert_published(mqtt_mock, "tuya/light01/bright/set", "1")
+    await hass.services.async_call("light", "turn_off", {"entity_id": lid}, blocking=True)
+    assert_published(mqtt_mock, "tuya/light01/power/set", "false")
+
+
+async def test_a_cover(hass, mqtt_mock):
+    await setup(hass)
+    announce(hass, tuya("tuya_curtain"))
+    await hass.async_block_till_done()
+    for prop, payload in (("available", "true"), ("position", "30"), ("motion", "opening")):
+        tuya_value(hass, "curtain01", prop, payload)
+    await hass.async_block_till_done()
+    cid = entity_id(hass, "cover", "curtain01-cover")
+    state = hass.states.get(cid)
+    assert state.state == "opening" and state.attributes["current_position"] == 30
+    assert state.attributes["device_class"] == "curtain"
+    tuya_value(hass, "curtain01", "motion", "stopped")
+    tuya_value(hass, "curtain01", "position", "0")
+    await hass.async_block_till_done()
+    assert hass.states.get(cid).state == "closed"
+
+    await hass.services.async_call("cover", "open_cover", {"entity_id": cid}, blocking=True)
+    assert_published(mqtt_mock, "tuya/curtain01/open/set", "")
+    await hass.services.async_call("cover", "stop_cover", {"entity_id": cid}, blocking=True)
+    assert_published(mqtt_mock, "tuya/curtain01/stop/set", "")
+    await hass.services.async_call("cover", "set_cover_position", {"entity_id": cid, "position": 60}, blocking=True)
+    assert_published(mqtt_mock, "tuya/curtain01/position/set", "60")
+
+
+async def test_a_cover_without_open_and_close_moves_by_position(hass, mqtt_mock):
+    await setup(hass)
+    doc = tuya("tuya_curtain")
+    doc["id"] = "curtain02"
+    for name in ("open", "close", "stop"):
+        del doc["props"][name]
+    for prop in doc["props"].values():
+        prop["x-mqtt"] = {k: v.replace("curtain01", "curtain02") for k, v in prop["x-mqtt"].items()}
+    doc["x-mqtt"] = {"reject": "tuya/curtain02/reject"}
+    announce(hass, doc)
+    await hass.async_block_till_done()
+    tuya_value(hass, "curtain02", "available", "true")
+    await hass.async_block_till_done()
+    cid = entity_id(hass, "cover", "curtain02-cover")
+    await hass.services.async_call("cover", "open_cover", {"entity_id": cid}, blocking=True)
+    assert_published(mqtt_mock, "tuya/curtain02/position/set", "100")
+    await hass.services.async_call("cover", "close_cover", {"entity_id": cid}, blocking=True)
+    assert_published(mqtt_mock, "tuya/curtain02/position/set", "0")
+
+
+async def test_a_lock(hass, mqtt_mock):
+    await setup(hass)
+    announce(hass, tuya("tuya_lock"))
+    await hass.async_block_till_done()
+    for prop, payload in (("available", "true"), ("locked", "true")):
+        tuya_value(hass, "lock01", prop, payload)
+    await hass.async_block_till_done()
+    lid = entity_id(hass, "lock", "lock01-lock")
+    assert hass.states.get(lid).state == "locked"
+    await hass.services.async_call("lock", "unlock", {"entity_id": lid}, blocking=True)
+    assert_published(mqtt_mock, "tuya/lock01/locked/set", "false")
+    await hass.services.async_call("lock", "open", {"entity_id": lid}, blocking=True)
+    assert_published(mqtt_mock, "tuya/lock01/unlatch/set", "")
+    tuya_value(hass, "lock01", "locked", "false")
+    await hass.async_block_till_done()
+    assert hass.states.get(lid).state == "unlocked"

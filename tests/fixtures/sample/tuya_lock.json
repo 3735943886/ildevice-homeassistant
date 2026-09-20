@@ -1,0 +1,51 @@
+{
+  "il": 0,
+  "id": "lock01",
+  "source": "rustuya",
+  "kind": "lock",
+  "class": "door_lock",
+  "label": "Front door",
+  "vendor": "Tuya",
+  "model": "TS0601",
+  "identifiers": {
+    "tuya_id": "lock01"
+  },
+  "props": {
+    "available": {
+      "type": "binary",
+      "role": "available",
+      "x-mqtt": {
+        "state": "tuya/lock01/available"
+      }
+    },
+    "locked": {
+      "type": "binary",
+      "rw": true,
+      "role": "locked",
+      "x-mqtt": {
+        "state": "tuya/lock01/locked",
+        "set": "tuya/lock01/locked/set"
+      }
+    },
+    "unlatch": {
+      "type": "trigger",
+      "role": "unlatch",
+      "x-mqtt": {
+        "state": "tuya/lock01/unlatch",
+        "set": "tuya/lock01/unlatch/set"
+      }
+    },
+    "battery": {
+      "type": "number",
+      "class": "battery",
+      "unit": "%",
+      "category": "diagnostic",
+      "x-mqtt": {
+        "state": "tuya/lock01/battery"
+      }
+    }
+  },
+  "x-mqtt": {
+    "reject": "tuya/lock01/reject"
+  }
+}
