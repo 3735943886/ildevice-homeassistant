@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "ildevice",
-        "description": "Devices that publish ildevice descriptors over MQTT (for example rusthinq or rustuya).",
+        "title": "IL device",
+        "description": "A hub: the devices that publish ildevice descriptors under one MQTT topic prefix, for example il/tuya or il/thinq. Add the integration again for each producer.",
         "data": {
           "il_prefix": "Topic prefix",
           "offline_grace": "Seconds before a device is shown unavailable",
@@ -21,7 +21,9 @@
       }
     },
     "error": {
-      "bad_aliases": "Not a JSON object of objects of strings."
+      "bad_aliases": "Not a JSON object of objects of strings.",
+      "bad_prefix": "The topic prefix is required.",
+      "duplicate_prefix": "Another hub already uses this topic prefix."
     },
     "abort": {
       "already_configured": "Already set up.",
@@ -45,7 +47,9 @@
       }
     },
     "error": {
-      "bad_aliases": "Not a JSON object of objects of strings."
+      "bad_aliases": "Not a JSON object of objects of strings.",
+      "bad_prefix": "The topic prefix is required.",
+      "duplicate_prefix": "Another hub already uses this topic prefix."
     }
   }
 }

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <mask id="ports">
+      <rect width="256" height="256" fill="#fff"/>
+      <circle cx="66.1" cy="126.0" r="6.1" fill="#000"/>
+      <circle cx="89.2" cy="126.0" r="6.1" fill="#000"/>
+      <circle cx="112.4" cy="126.0" r="6.1" fill="#000"/>
+      <rect x="152.5" y="117.1" width="43.5" height="17.7" rx="8.8" fill="#000"/>
+    </mask>
+  </defs>
+  <rect x="73.6" y="32.8" width="108.8" height="40.8" rx="20.4" fill="#22d3ee"/>
+  <rect x="35.5" y="91.3" width="185.0" height="73.4" rx="21.8" fill="#4f46e5" mask="url(#ports)"/>
+  <rect x="8.3" y="182.4" width="239.4" height="40.8" rx="20.4" fill="#818cf8"/>
+</svg>

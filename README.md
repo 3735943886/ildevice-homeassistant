@@ -1,4 +1,11 @@
-# ildevice for Home Assistant (il-ha)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="custom_components/ildevice/brand/dark_logo@2x.png">
+    <img src="custom_components/ildevice/brand/logo@2x.png" alt="IL device" width="420">
+  </picture>
+</p>
+
+# IL device for Home Assistant (il-ha)
 
 A Home Assistant integration for [ildevice](https://github.com/3735943886/ildevice) (Intermediate
 Layer device model). It turns the ildevice descriptors that producers publish over MQTT into
@@ -9,14 +16,24 @@ from the descriptor alone.
 ## Setup
 
 Requires Home Assistant's `mqtt` integration. Install this repository as a custom repository in
-HACS (or copy `custom_components/ildevice`), restart, and add the **ildevice** integration.
+HACS (or copy `custom_components/ildevice`), restart, and add the **IL device** integration. Add it once per hub (see [Hubs](#hubs)).
 
 | option | meaning |
 |---|---|
-| Topic prefix | The ildevice prefix the producers publish under (default `il`). |
+| Topic prefix | The ildevice prefix the producers publish under (default `il`), for example `il/tuya`. Each entry is a hub, so it must be unique. |
 | Seconds before a device is shown unavailable | Keeps a short outage from showing (default `0`). |
 | Legacy entity ids | JSON aliases that keep the unique ids of an earlier integration, see below. |
 | Add discovered devices automatically | Skip the add / ignore question, see below. |
+
+## Hubs
+
+Each entry of the integration is a **hub**: one topic prefix, such as `il/tuya` or `il/thinq`. Add the
+integration again for each producer and give it its own prefix. Every hub shows up in Home Assistant
+as a device named after its prefix, and the devices found under that prefix are placed beneath it
+(`via_device`). A discovered device is offered to, and added to, the hub it was found on. Each hub has
+its own options (auto-add, offline grace, legacy ids); changing a hub's prefix renames it. A prefix can
+be used by one hub only, and a hub device is removed together with its entry, not on its own. Device
+ids should be unique across hubs, as they are the device identifier and the base of the unique ids.
 
 ## How it works
 
@@ -54,7 +71,9 @@ HACS (or copy `custom_components/ildevice`), restart, and add the **ildevice** i
 - Availability is the device's `available` property and the producer's presence
   (`<il_prefix>/_producer/<source>`; `offline` makes all of its devices unavailable).
   `offline_grace` keeps a short outage from showing.
-- An empty descriptor removes the device; a changed one re-plans its entities.
+- An empty (null) descriptor withdraws the device: its entities, registry entries and value
+  subscriptions go, and it is created again if the descriptor is published again. A changed
+  descriptor re-plans its entities.
 - A property with an unknown role, type or field is still usable as a plain entity.
 
 ## Adding devices

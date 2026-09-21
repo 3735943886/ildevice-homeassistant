@@ -1,6 +1,6 @@
 {
   "domain": "ildevice",
-  "name": "ildevice",
+  "name": "IL device",
   "codeowners": ["@3735943886"],
   "config_flow": true,
   "dependencies": ["mqtt"],
