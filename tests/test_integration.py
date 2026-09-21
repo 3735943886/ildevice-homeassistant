@@ -817,3 +817,19 @@ async def test_a_null_descriptor_removes_the_device_from_the_registry(hass, mqtt
     await hass.async_block_till_done()
     assert device_ids(hass) == set()
     assert not er.async_get(hass).async_get_entity_id("humidifier", DOMAIN, "dhum1-humidifier")
+
+
+async def test_devices_are_placed_under_the_hub_by_registry_id(hass, mqtt_mock):
+    """`via_device` (an identifier tuple) is deprecated and an error in Home Assistant: hand over `via_device_id`."""
+    await setup(hass, il_prefix="il/tuya")
+    tdoc = tuya("tuya_light")
+    async_fire_mqtt_message(hass, f"il/tuya/{tdoc['id']}", json.dumps(tdoc))
+    await hass.async_block_till_done()
+    registry = dr.async_get(hass)
+    hub = next(d for d in registry.devices if d.name == "il/tuya")
+    light = next(d for d in registry.devices if (DOMAIN, tdoc["id"]) in d.identifiers)
+    assert light.via_device_id == hub.id
+    ent = er.async_get(hass).async_get(entity_id(hass, "light", f"{tdoc['id']}-light"))
+    entity = hass.data["light"].get_entity(ent.entity_id)
+    assert entity._attr_device_info.get("via_device_id") == hub.id
+    assert "via_device" not in entity._attr_device_info
