@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Intermediate Layer",
-        "description": "Devices that publish Intermediate Layer descriptors over MQTT (for example rusthinq or rustuya).",
+        "title": "ildevice",
+        "description": "Devices that publish ildevice descriptors over MQTT (for example rusthinq or rustuya).",
         "data": {
           "il_prefix": "Topic prefix",
           "offline_grace": "Seconds before a device is shown unavailable",
@@ -17,7 +17,7 @@
       },
       "discovery_confirm": {
         "title": "Add {name}?",
-        "description": "{name} ({model}) is publishing an Intermediate Layer descriptor. Add it to Home Assistant?"
+        "description": "{name} ({model}) is publishing an ildevice descriptor. Add it to Home Assistant?"
       }
     },
     "error": {

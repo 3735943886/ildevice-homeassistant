@@ -16,7 +16,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from conftest import load
-from custom_components.il_ha.const import DOMAIN, EVENT_COMMAND_REJECTED
+from custom_components.ildevice.const import DOMAIN, EVENT_COMMAND_REJECTED
 
 
 @pytest.fixture(autouse=True)
@@ -429,7 +429,7 @@ async def test_devices_already_registered_stay_when_the_question_is_introduced(h
 
 
 async def test_deleting_a_device_makes_it_a_new_offer(hass, mqtt_mock):
-    from custom_components.il_ha import async_remove_config_entry_device
+    from custom_components.ildevice import async_remove_config_entry_device
 
     entry = await setup(hass, auto_add=False, devices=["dhum1"])
     announce(hass, descriptor("DHUM_056905_WW", "dhum1"))
@@ -500,14 +500,14 @@ async def test_a_cover(hass, mqtt_mock):
     await setup(hass)
     announce(hass, tuya("tuya_curtain"))
     await hass.async_block_till_done()
-    for prop, payload in (("available", "true"), ("position", "30"), ("motion", "opening")):
+    for prop, payload in (("available", "true"), ("position", "30"), ("cover_state", "opening")):
         tuya_value(hass, "curtain01", prop, payload)
     await hass.async_block_till_done()
     cid = entity_id(hass, "cover", "curtain01-cover")
     state = hass.states.get(cid)
     assert state.state == "opening" and state.attributes["current_position"] == 30
     assert state.attributes["device_class"] == "curtain"
-    tuya_value(hass, "curtain01", "motion", "stopped")
+    tuya_value(hass, "curtain01", "cover_state", "stopped")
     tuya_value(hass, "curtain01", "position", "0")
     await hass.async_block_till_done()
     assert hass.states.get(cid).state == "closed"
@@ -722,3 +722,41 @@ async def test_plain_entities_get_an_icon_from_what_they_are(hass, mqtt_mock):
     # an entity with a device class (the tank's `problem`, the humidity) is left to Home Assistant's own icon
     assert icons["tank_full"] is None
     assert "icon" not in hass.states.get(entity_id(hass, "sensor", "dhum1-humidity")).attributes
+
+
+async def test_a_cover_with_only_a_state_knows_closed_and_moving(hass, mqtt_mock):
+    await setup(hass)
+    doc = tuya("tuya_curtain")
+    doc["id"] = "curtain03"
+    del doc["props"]["position"]
+    for prop in doc["props"].values():
+        prop["x-mqtt"] = {k: v.replace("curtain01", "curtain03") for k, v in prop["x-mqtt"].items()}
+    doc["x-mqtt"] = {"reject": "tuya/curtain03/reject"}
+    announce(hass, doc)
+    await hass.async_block_till_done()
+    tuya_value(hass, "curtain03", "available", "true")
+    tuya_value(hass, "curtain03", "cover_state", "closing")
+    await hass.async_block_till_done()
+    cid = entity_id(hass, "cover", "curtain03-cover")
+    state = hass.states.get(cid)
+    assert state.state == "closing" and "assumed_state" not in state.attributes
+    tuya_value(hass, "curtain03", "cover_state", "closed")
+    await hass.async_block_till_done()
+    assert hass.states.get(cid).state == "closed"
+    tuya_value(hass, "curtain03", "cover_state", "open")
+    await hass.async_block_till_done()
+    assert hass.states.get(cid).state == "open"
+
+
+async def test_a_lock_shows_its_states_between(hass, mqtt_mock):
+    await setup(hass)
+    announce(hass, tuya("tuya_lock"))
+    await hass.async_block_till_done()
+    tuya_value(hass, "lock01", "available", "true")
+    tuya_value(hass, "lock01", "locked", "false")
+    lid = entity_id(hass, "lock", "lock01-lock")
+    for wire, expected in (("locking", "locking"), ("unlocking", "unlocking"), ("jammed", "jammed"),
+                           ("open", "open"), ("locked", "locked"), ("unlocked", "unlocked")):
+        tuya_value(hass, "lock01", "lock_state", wire)
+        await hass.async_block_till_done()
+        assert hass.states.get(lid).state == expected

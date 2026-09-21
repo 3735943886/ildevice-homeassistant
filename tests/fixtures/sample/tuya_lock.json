@@ -43,6 +43,21 @@
       "x-mqtt": {
         "state": "tuya/lock01/battery"
       }
+    },
+    "lock_state": {
+      "type": "select",
+      "role": "lock_state",
+      "options": [
+        "locked",
+        "unlocked",
+        "locking",
+        "unlocking",
+        "jammed",
+        "open"
+      ],
+      "x-mqtt": {
+        "state": "tuya/lock01/lock_state"
+      }
     }
   },
   "x-mqtt": {

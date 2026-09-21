@@ -31,18 +31,6 @@
         "set": "tuya/curtain01/position/set"
       }
     },
-    "motion": {
-      "type": "select",
-      "role": "motion",
-      "options": [
-        "opening",
-        "closing",
-        "stopped"
-      ],
-      "x-mqtt": {
-        "state": "tuya/curtain01/motion"
-      }
-    },
     "open": {
       "type": "trigger",
       "role": "open",
@@ -65,6 +53,20 @@
       "x-mqtt": {
         "state": "tuya/curtain01/stop",
         "set": "tuya/curtain01/stop/set"
+      }
+    },
+    "cover_state": {
+      "type": "select",
+      "role": "cover_state",
+      "options": [
+        "open",
+        "closed",
+        "opening",
+        "closing",
+        "stopped"
+      ],
+      "x-mqtt": {
+        "state": "tuya/curtain01/cover_state"
       }
     }
   },

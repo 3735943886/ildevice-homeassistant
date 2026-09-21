@@ -1,7 +1,7 @@
 """IL devices in Home Assistant: any producer that publishes IL descriptors over MQTT
 (rusthinq, rustuya, ...) gets its devices and entities, with no code per model.
 
-Importing this package needs no Home Assistant (`il_ha.core` is usable on its own); Home Assistant is imported
+Importing this package needs no Home Assistant (`ildevice.core` is usable on its own); Home Assistant is imported
 when the integration is set up. A host that embeds the consumer calls `attach.attach_hub`.
 """
 

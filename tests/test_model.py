@@ -6,8 +6,8 @@ import sys
 
 import pytest
 
-from custom_components.il_ha.core import IlModel
-from custom_components.il_ha.core.memory import InProcessTransport, matches
+from custom_components.ildevice.core import IlModel
+from custom_components.ildevice.core.memory import InProcessTransport, matches
 
 DESC = {"il": 0, "id": "d1", "source": "prod", "kind": "light", "label": "Lamp", "props": {
     "available": {"type": "binary", "role": "available"},
@@ -145,5 +145,5 @@ async def test_stop_releases_every_subscription():
 
 def test_the_core_imports_without_home_assistant():
     code = ("import sys; sys.modules['homeassistant'] = None; "
-            "import custom_components.il_ha.core as c; assert c.IlModel and c.plan_entities")
+            "import custom_components.ildevice.core as c; assert c.IlModel and c.plan_entities")
     subprocess.run([sys.executable, "-c", code], check=True)

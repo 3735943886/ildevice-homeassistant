@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from custom_components.il_ha.core import decode_value, encode_command, parse_descriptor, plan_entities
-from custom_components.il_ha.core.descriptor import Prop
-from custom_components.il_ha.core.topics import resolve_topics, set_topic, state_topic
+from custom_components.ildevice.core import decode_value, encode_command, parse_descriptor, plan_entities
+from custom_components.ildevice.core.descriptor import Prop
+from custom_components.ildevice.core.topics import resolve_topics, set_topic, state_topic
 
 ROOT = Path(os.environ.get("ILDEVICE", Path(__file__).resolve().parents[2] / "ildevice"))
 VECTORS = ROOT / "vectors"

@@ -3,7 +3,7 @@
 import pytest
 
 from conftest import FIXTURES, load
-from custom_components.il_ha.core import (
+from custom_components.ildevice.core import (
     DescriptorError,
     decode_value,
     encode_command,
@@ -11,8 +11,8 @@ from custom_components.il_ha.core import (
     plan_entities,
     resolve_topics,
 )
-from custom_components.il_ha.core.plan import availability_prop
-from custom_components.il_ha.core.topics import set_topic, state_topic
+from custom_components.ildevice.core.plan import availability_prop
+from custom_components.ildevice.core.topics import set_topic, state_topic
 
 
 def plan(model, aliases=None):
@@ -210,9 +210,9 @@ def test_a_cover_needs_a_position_or_a_way_to_open_and_close():
     cover = by_key(specs)["cover"]
     assert cover.platform == "cover" and cover.device_class == "curtain"
     assert dict(cover.slots) == {
-        "position": "position", "motion": "motion", "open": "open", "close": "close", "stop": "stop",
+        "position": "position", "cover_state": "cover_state", "open": "open", "close": "close", "stop": "stop",
     }
-    desc = parse_descriptor({"id": "x", "kind": "cover", "props": {"m": {"type": "select", "role": "motion", "options": ["stopped"]}}})
+    desc = parse_descriptor({"id": "x", "kind": "cover", "props": {"m": {"type": "select", "role": "cover_state", "options": ["stopped"]}}})
     assert [s.platform for s in plan_entities(desc)] == ["sensor"]
 
 
@@ -226,7 +226,7 @@ def test_a_garage_door_is_the_garage_device_class():
 def test_a_lock_is_only_a_lock_when_it_can_be_written():
     _, specs = sample("tuya_lock")
     lock = by_key(specs)["lock"]
-    assert lock.platform == "lock" and dict(lock.slots) == {"locked": "locked", "unlatch": "unlatch"}
+    assert lock.platform == "lock" and dict(lock.slots) == {"locked": "locked", "lock_state": "lock_state", "unlatch": "unlatch"}
     assert by_key(specs)["battery"].platform == "sensor"
     desc = parse_descriptor(
         {"id": "x", "kind": "lock", "props": {"l": {"type": "binary", "role": "locked"}, "u": {"type": "trigger", "role": "unlatch"}}}

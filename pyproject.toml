@@ -8,7 +8,7 @@ version = "0.0.1.dev0"
 description = "Home Assistant integration that turns IL descriptors into entities"
 requires-python = ">=3.13"
 license = "MIT"
-dependencies = []   # `custom_components.il_ha.core` needs nothing; the Home Assistant layer needs Home Assistant
+dependencies = []   # `custom_components.ildevice.core` needs nothing; the Home Assistant layer needs Home Assistant
 
 
 [tool.pytest.ini_options]
@@ -16,6 +16,6 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
 
-# The same tree Home Assistant loads (custom_components/il_ha), installable so a host outside Home Assistant can use `core`.
+# The same tree Home Assistant loads (custom_components/ildevice), installable so a host outside Home Assistant can use `core`.
 [tool.hatch.build.targets.wheel]
-packages = ["custom_components/il_ha"]
+packages = ["custom_components/ildevice"]

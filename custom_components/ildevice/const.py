@@ -1,6 +1,6 @@
 """Constants of the IL integration."""
 
-DOMAIN = "il_ha"
+DOMAIN = "ildevice"
 
 CONF_IL_PREFIX = "il_prefix"
 CONF_OFFLINE_GRACE = "offline_grace"

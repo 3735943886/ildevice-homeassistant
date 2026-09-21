@@ -580,8 +580,8 @@ class IlCover(IlEntity, CoverEntity):
         if "tilt" in spec.slots and props[spec.slots["tilt"]].writable:
             features |= CoverEntityFeature.SET_TILT_POSITION
         self._attr_supported_features = features
-        # without a position the cover never says where it is
-        self._attr_assumed_state = position is None
+        # without a position or a state the cover never says where it is
+        self._attr_assumed_state = position is None and "cover_state" not in spec.slots
 
     @property
     def current_cover_position(self) -> int | None:
@@ -594,17 +594,20 @@ class IlCover(IlEntity, CoverEntity):
     @property
     def is_closed(self) -> bool | None:
         position = self._v("position")
-        return None if position is None else position == 0
+        if position is not None:
+            return position == 0
+        state = self._v("cover_state")
+        return None if state is None else state == "closed"
 
     @property
     def is_opening(self) -> bool | None:
-        motion = self._v("motion")
-        return None if motion is None else motion == "opening"
+        state = self._v("cover_state")
+        return None if state is None else state == "opening"
 
     @property
     def is_closing(self) -> bool | None:
-        motion = self._v("motion")
-        return None if motion is None else motion == "closing"
+        state = self._v("cover_state")
+        return None if state is None else state == "closing"
 
     async def async_open_cover(self, **kwargs: Any) -> None:
         if "open" in self.spec.slots:
@@ -634,9 +637,35 @@ class IlLock(IlEntity, LockEntity):
         if "unlatch" in spec.slots:
             self._attr_supported_features = LockEntityFeature.OPEN
 
+    def _state(self) -> str | None:
+        return self._v("lock_state")
+
     @property
     def is_locked(self) -> bool | None:
+        state = self._state()
+        if state is not None:
+            return state == "locked"
         return self._v("locked")
+
+    @property
+    def is_locking(self) -> bool | None:
+        state = self._state()
+        return None if state is None else state == "locking"
+
+    @property
+    def is_unlocking(self) -> bool | None:
+        state = self._state()
+        return None if state is None else state == "unlocking"
+
+    @property
+    def is_jammed(self) -> bool | None:
+        state = self._state()
+        return None if state is None else state == "jammed"
+
+    @property
+    def is_open(self) -> bool | None:
+        state = self._state()
+        return None if state is None else state == "open"
 
     async def async_lock(self, **kwargs: Any) -> None:
         await self._write("locked", True)

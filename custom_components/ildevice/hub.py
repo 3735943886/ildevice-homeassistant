@@ -47,7 +47,7 @@ class IlHub:
         self.hass = hass
         self.transport: Transport = transport or HaMqttTransport(hass)
         self.platform = platform
-        """The integration domain the entities are registered under (`il_ha`, or a host that embeds this)."""
+        """The integration domain the entities are registered under (`ildevice`, or a host that embeds this)."""
         self.model = IlModel(
             self.transport,
             self,

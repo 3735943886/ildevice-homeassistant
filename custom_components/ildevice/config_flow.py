@@ -56,7 +56,7 @@ class IlConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             if _check_aliases(user_input.get(CONF_ALIASES, "")):
                 return self.async_create_entry(
-                    title="Intermediate Layer", data={}, options={**user_input, CONF_DEVICES: []}
+                    title="ildevice", data={}, options={**user_input, CONF_DEVICES: []}
                 )
             errors[CONF_ALIASES] = "bad_aliases"
         return self.async_show_form(
