@@ -1,5 +1,4 @@
-![IL device](custom_components/ildevice/brand/logo@2x.png#gh-light-mode-only)
-![IL device](custom_components/ildevice/brand/dark_logo@2x.png#gh-dark-mode-only)
+![IL device](custom_components/ildevice/brand/icon.png)
 
 # IL device for Home Assistant (il-ha)
 
