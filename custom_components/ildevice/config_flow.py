@@ -46,19 +46,34 @@ def _check_aliases(text: str) -> bool:
     )
 
 
+def _prefix_in_use(hass, prefix: str, ignore_entry_id: str | None = None) -> bool:
+    return any(
+        e.entry_id != ignore_entry_id and e.options.get(CONF_IL_PREFIX, DEFAULT_IL_PREFIX) == prefix
+        for e in hass.config_entries.async_entries(DOMAIN)
+    )
+
+
+def _clean_prefix(text: str) -> str:
+    return text.strip().strip("/")
+
+
 class IlConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        await self.async_set_unique_id(DOMAIN)
-        self._abort_if_unique_id_configured()
+        """Each entry is a hub: one topic prefix (`il/tuya`, `il/thinq`, ...). Add the integration again for another."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            if _check_aliases(user_input.get(CONF_ALIASES, "")):
-                return self.async_create_entry(
-                    title="ildevice", data={}, options={**user_input, CONF_DEVICES: []}
-                )
-            errors[CONF_ALIASES] = "bad_aliases"
+            user_input = {**user_input, CONF_IL_PREFIX: _clean_prefix(user_input[CONF_IL_PREFIX])}
+            prefix = user_input[CONF_IL_PREFIX]
+            if not prefix:
+                errors[CONF_IL_PREFIX] = "bad_prefix"
+            elif _prefix_in_use(self.hass, prefix):
+                errors[CONF_IL_PREFIX] = "duplicate_prefix"
+            if not _check_aliases(user_input.get(CONF_ALIASES, "")):
+                errors[CONF_ALIASES] = "bad_aliases"
+            if not errors:
+                return self.async_create_entry(title=prefix, data={}, options={**user_input, CONF_DEVICES: []})
         return self.async_show_form(
             step_id="user",
             data_schema=_schema(DEFAULT_IL_PREFIX, DEFAULT_OFFLINE_GRACE, "", False),
@@ -76,10 +91,9 @@ class IlConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_discovery_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         device = self._device
         if user_input is not None:
-            entries = self._async_current_entries(include_ignore=False)
-            if not entries:
+            hub = self.hass.config_entries.async_get_entry(device.get("entry_id") or "")
+            if hub is None:
                 return self.async_abort(reason="no_hub")
-            hub = entries[0]
             devices = list(hub.options.get(CONF_DEVICES, []))
             if device["device_id"] not in devices:
                 devices.append(device["device_id"])
@@ -101,14 +115,22 @@ class IlOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            if _check_aliases(user_input.get(CONF_ALIASES, "")):
+            user_input = {**user_input, CONF_IL_PREFIX: _clean_prefix(user_input[CONF_IL_PREFIX])}
+            prefix = user_input[CONF_IL_PREFIX]
+            if not prefix:
+                errors[CONF_IL_PREFIX] = "bad_prefix"
+            elif _prefix_in_use(self.hass, prefix, self.config_entry.entry_id):
+                errors[CONF_IL_PREFIX] = "duplicate_prefix"
+            elif _check_aliases(user_input.get(CONF_ALIASES, "")):
                 devices = set(self.config_entry.options.get(CONF_DEVICES, []))
                 hub = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
                 if hub is not None and not user_input[CONF_AUTO_ADD]:
                     # Turning "add automatically" off keeps the devices it added.
                     devices |= set(hub.devices)
+                self.hass.config_entries.async_update_entry(self.config_entry, title=prefix)
                 return self.async_create_entry(data={**user_input, CONF_DEVICES: sorted(devices)})
-            errors[CONF_ALIASES] = "bad_aliases"
+            else:
+                errors[CONF_ALIASES] = "bad_aliases"
         o = self.config_entry.options
         return self.async_show_form(
             step_id="init",

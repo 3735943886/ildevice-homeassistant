@@ -8,6 +8,7 @@ from typing import Callable
 
 from homeassistant.config_entries import SOURCE_INTEGRATION_DISCOVERY
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import discovery_flow
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -43,8 +44,13 @@ class IlHub:
         allowed: set[str] | None = None,
         transport: Transport | None = None,
         platform: str = DOMAIN,
+        entry_id: str | None = None,
+        hub_identifier: str | None = None,
     ) -> None:
         self.hass = hass
+        self.entry_id = entry_id
+        self.hub_identifier = hub_identifier
+        """The hub's device identifier: its devices are placed under it (`via_device`)."""
         self.transport: Transport = transport or HaMqttTransport(hass)
         self.platform = platform
         """The integration domain the entities are registered under (`ildevice`, or a host that embeds this)."""
@@ -111,7 +117,7 @@ class IlHub:
             self.hass,
             DOMAIN,
             context={"source": SOURCE_INTEGRATION_DISCOVERY},
-            data={"device_id": desc.id, "label": desc.label or desc.model or desc.id, "model": desc.model or ""},
+            data={"entry_id": self.entry_id, "device_id": desc.id, "label": desc.label or desc.model or desc.id, "model": desc.model or ""},
         )
 
     def withdrawn(self, device_id: str) -> None:
@@ -136,6 +142,7 @@ class IlHub:
     async def removed(self, dev: Device) -> None:
         await self._drop_entities(dev)
         self._forget_unique_ids({s.unique_id for s in dev.specs})
+        self._forget_device(dev.desc.id)
 
     def values_changed(self, dev: Device) -> None:
         async_dispatcher_send(self.hass, signal(dev.desc.id))
@@ -151,6 +158,15 @@ class IlHub:
         for entity in entities:
             if entity.hass is not None:
                 await entity.async_remove()
+
+    def _forget_device(self, device_id: str) -> None:
+        """The producer withdrew the device: its registry entry goes too, not only its entities."""
+        if self.entry_id is None:
+            return
+        registry = dr.async_get(self.hass)
+        for device in dr.async_entries_for_config_entry(registry, self.entry_id):
+            if (self.platform, device_id) in device.identifiers:
+                registry.async_remove_device(device.id)
 
     def _forget_unique_ids(self, unique_ids: set[str]) -> None:
         registry = er.async_get(self.hass)

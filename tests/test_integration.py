@@ -361,7 +361,7 @@ def offers(hass):
 
 
 def device_ids(hass):
-    return {i[1] for d in dr.async_get(hass).devices for i in d.identifiers if i[0] == DOMAIN}
+    return {i[1] for d in dr.async_get(hass).devices for i in d.identifiers if i[0] == DOMAIN and not i[1].startswith("hub:")}
 
 
 async def test_a_new_device_is_offered_and_not_created(hass, mqtt_mock):
@@ -434,7 +434,7 @@ async def test_deleting_a_device_makes_it_a_new_offer(hass, mqtt_mock):
     entry = await setup(hass, auto_add=False, devices=["dhum1"])
     announce(hass, descriptor("DHUM_056905_WW", "dhum1"))
     await hass.async_block_till_done()
-    (device,) = list(dr.async_get(hass).devices)
+    (device,) = [d for d in dr.async_get(hass).devices if (DOMAIN, "dhum1") in d.identifiers]
 
     assert await async_remove_config_entry_device(hass, entry, device)
     assert entry.options["devices"] == []
@@ -760,3 +760,60 @@ async def test_a_lock_shows_its_states_between(hass, mqtt_mock):
         tuya_value(hass, "lock01", "lock_state", wire)
         await hass.async_block_till_done()
         assert hass.states.get(lid).state == expected
+
+
+# ---- several hubs: one entry per topic prefix ------------------------------------------
+
+
+async def test_each_prefix_is_a_hub_with_its_devices_under_it(hass, mqtt_mock):
+    await setup(hass, il_prefix="il/tuya")
+    await setup(hass, il_prefix="il/thinq")
+    doc = descriptor("DHUM_056905_WW", "dhum1")
+    async_fire_mqtt_message(hass, "il/thinq/dhum1", json.dumps(doc))
+    tdoc = tuya("tuya_light")
+    async_fire_mqtt_message(hass, f"il/tuya/{tdoc['id']}", json.dumps(tdoc))
+    await hass.async_block_till_done()
+
+    registry = dr.async_get(hass)
+    hubs = {d.name: d for d in registry.devices if (DOMAIN, f"hub:{d.name}") in d.identifiers}
+    assert set(hubs) == {"il/tuya", "il/thinq"}
+    dhum = next(d for d in registry.devices if (DOMAIN, "dhum1") in d.identifiers)
+    light = next(d for d in registry.devices if (DOMAIN, tdoc["id"]) in d.identifiers)
+    assert dhum.via_device_id == hubs["il/thinq"].id
+    assert light.via_device_id == hubs["il/tuya"].id
+
+
+async def test_a_prefix_can_be_a_hub_only_once(hass, mqtt_mock):
+    await setup(hass, il_prefix="il/tuya")
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"il_prefix": "il/tuya/", "offline_grace": 0, "aliases": "", "auto_add": False}
+    )
+    assert result["errors"] == {"il_prefix": "duplicate_prefix"}
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"il_prefix": "il/thinq", "offline_grace": 0, "aliases": "", "auto_add": False}
+    )
+    assert result["title"] == "il/thinq"
+
+
+async def test_an_offer_is_added_to_the_hub_that_made_it(hass, mqtt_mock):
+    await setup(hass, il_prefix="il/tuya", auto_add=False)
+    thinq = await setup(hass, il_prefix="il/thinq", auto_add=False)
+    async_fire_mqtt_message(hass, "il/thinq/dhum1", json.dumps(descriptor("DHUM_056905_WW", "dhum1")))
+    await hass.async_block_till_done()
+    (flow,) = offers(hass)
+    await hass.config_entries.flow.async_configure(flow["flow_id"], {})
+    await hass.async_block_till_done()
+    assert thinq.options["devices"] == ["dhum1"]
+
+
+async def test_a_null_descriptor_removes_the_device_from_the_registry(hass, mqtt_mock):
+    await setup(hass)
+    announce(hass, descriptor("DHUM_056905_WW", "dhum1"))
+    await hass.async_block_till_done()
+    assert device_ids(hass) == {"dhum1"}
+
+    async_fire_mqtt_message(hass, "il/dhum1", "")
+    await hass.async_block_till_done()
+    assert device_ids(hass) == set()
+    assert not er.async_get(hass).async_get_entity_id("humidifier", DOMAIN, "dhum1-humidifier")
