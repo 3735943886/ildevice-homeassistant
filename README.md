@@ -11,18 +11,21 @@ from the descriptor alone.
 - It subscribes to `<il_prefix>/+` (the retained ildevice descriptors) and, for each device, to the value
   topics and the `reject` topic the descriptor points at (`x-mqtt`, see `il-mqtt.md` in the ildevice repo).
 - A device's **kind** and the **roles** of its properties decide the composite entities:
-  `climate`, `humidifier` (a dehumidifier is class `dehumidifier`), `fan`, `light`, `cover`, `lock`.
+  `climate`, `humidifier` (a dehumidifier is class `dehumidifier`), `fan`, `light`, `cover`, `lock`,
+  `siren`, `valve`, `alarm_control_panel` (kind `alarm`), `vacuum`.
   Every other property is
   a plain entity chosen by its type: `sensor` / `binary_sensor` / `switch` / `number` / `select` /
   `text` / `button`. `class`, `series` and `category` become `device_class`, `state_class` and
   `entity_category`.
-- A control whose property has `requires` is unavailable until the property it names is true.
+- A control whose property has `requires` (a binary that must be true, or a select whose value must be
+  in a list) is unavailable, or for one control of a composite refused, until the condition holds.
   A refused command arrives as an `il_ha_command_rejected` event (`device_id`, `prop`, `reason`).
 - A `light` is `on` plus whichever of `brightness`, `color_temperature`, `color` it has; the
   supported modes follow from which roles exist. A `cover` needs `position`, `open` or `close`
   (without `open`/`close` it moves by writing `position` 100 / 0). A `lock` is created only when
   `locked` is writable; a read-only one stays a binary sensor, so a role never implies control.
-- Availability is the device's `available` property. `offline_grace` (seconds) keeps a short
+- Availability is the device's `available` property, and the producer's presence topic
+  (`<il_prefix>/_producer/<source>`, `offline` makes its devices unavailable). `offline_grace` (seconds) keeps a short
   outage from showing.
 - An empty descriptor removes the device; a changed one re-plans its entities.
 

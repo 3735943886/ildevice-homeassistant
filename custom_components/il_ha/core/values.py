@@ -14,11 +14,10 @@ def decode_value(prop: Prop, payload: str | bytes | None) -> Any:
     if payload is None:
         return None
     text = payload.decode("utf-8", "replace") if isinstance(payload, (bytes, bytearray)) else payload
-    text = text.strip()
-    if text == "":
+    if text.strip() == "":
         return None
     if prop.type == "binary":
-        lowered = text.lower()
+        lowered = text.strip().lower()
         if lowered in ("true", "on", "1"):
             return True
         if lowered in ("false", "off", "0"):
@@ -26,7 +25,7 @@ def decode_value(prop: Prop, payload: str | bytes | None) -> Any:
         return None
     if prop.type == "number":
         try:
-            number = float(json.loads(text))
+            number = float(json.loads(text.strip()))
         except (ValueError, TypeError):
             return None
         if number != number or number in (float("inf"), float("-inf")):

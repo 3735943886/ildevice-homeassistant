@@ -270,9 +270,9 @@ async def test_a_refused_command_is_fired_as_an_event(hass, mqtt_mock):
     await hass.async_block_till_done()
     events = []
     hass.bus.async_listen(EVENT_COMMAND_REJECTED, lambda e: events.append(e.data))
-    async_fire_mqtt_message(hass, "rusthinq/w1/reject", json.dumps({"prop": "start", "reason": "requires remote_start"}))
+    async_fire_mqtt_message(hass, "rusthinq/w1/reject", json.dumps({"prop": "start", "code": "requires_unmet", "reason": "requires remote_start"}))
     await hass.async_block_till_done()
-    assert events == [{"device_id": "w1", "prop": "start", "reason": "requires remote_start"}]
+    assert events == [{"device_id": "w1", "prop": "start", "code": "requires_unmet", "reason": "requires remote_start"}]
 
 
 async def test_an_empty_descriptor_removes_the_device(hass, mqtt_mock):
@@ -608,3 +608,102 @@ async def test_an_event_fires_once_per_message_and_ignores_a_retained_one(hass, 
     async_fire_mqtt_message(hass, "tuya/btn01/button", "unknown_kind")
     await hass.async_block_till_done()
     assert hass.states.get(eid).attributes["event_type"] == "double_click"
+
+
+# ---- presence, alarm, vacuum, requires on a composite ----------------------------------
+
+GARAGE = {
+    "il": 0, "id": "g1", "source": "acme", "kind": "cover", "class": "garage_door", "label": "Garage",
+    "props": {
+        "armed": {"type": "select", "options": ["remote", "local"]},
+        "position": {"type": "number", "rw": True, "role": "position", "unit": "%", "min": 0, "max": 100,
+                     "requires": {"prop": "armed", "in": ["remote"]}},
+    },
+}
+
+
+def plain_value(hass, device_id, prop, payload):
+    async_fire_mqtt_message(hass, f"il/{device_id}/{prop}", payload)
+
+
+async def test_a_composite_control_is_not_written_while_its_condition_fails(hass, mqtt_mock):
+    from homeassistant.exceptions import ServiceValidationError
+
+    await setup(hass)
+    announce(hass, GARAGE)
+    await hass.async_block_till_done()
+    cover = entity_id(hass, "cover", "g1-cover")
+    plain_value(hass, "g1", "armed", "local")
+    await hass.async_block_till_done()
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call("cover", "open_cover", {"entity_id": cover}, blocking=True)
+    plain_value(hass, "g1", "armed", "remote")
+    await hass.async_block_till_done()
+    await hass.services.async_call("cover", "open_cover", {"entity_id": cover}, blocking=True)
+    assert_published(mqtt_mock, "il/g1/position/set", "100")
+
+
+async def test_a_producer_going_offline_makes_its_devices_unavailable(hass, mqtt_mock):
+    await setup(hass)
+    announce(hass, GARAGE)
+    await hass.async_block_till_done()
+    plain_value(hass, "g1", "armed", "remote")
+    plain_value(hass, "g1", "position", "0")
+    await hass.async_block_till_done()
+    cover = entity_id(hass, "cover", "g1-cover")
+    assert hass.states.get(cover).state != STATE_UNAVAILABLE
+    async_fire_mqtt_message(hass, "il/_producer/acme", "offline")
+    await hass.async_block_till_done()
+    assert hass.states.get(cover).state == STATE_UNAVAILABLE
+    async_fire_mqtt_message(hass, "il/_producer/acme", "online")
+    await hass.async_block_till_done()
+    assert hass.states.get(cover).state != STATE_UNAVAILABLE
+
+
+async def test_an_alarm_panel_and_a_vacuum(hass, mqtt_mock):
+    await setup(hass)
+    announce(hass, {
+        "il": 0, "id": "a1", "kind": "alarm", "label": "Panel",
+        "props": {
+            "state": {"type": "select", "role": "alarm_state", "options": ["disarmed", "armed_home", "triggered"]},
+            "arm_home": {"type": "trigger", "role": "arm_home"},
+            "disarm": {"type": "trigger", "role": "disarm"},
+        },
+    })
+    announce(hass, {
+        "il": 0, "id": "v1", "kind": "vacuum", "label": "Robot",
+        "props": {
+            "state": {"type": "select", "role": "vacuum_state", "options": ["cleaning", "docked"]},
+            "start": {"type": "trigger", "role": "start"},
+            "battery": {"type": "number", "role": "battery", "unit": "%"},
+        },
+    })
+    await hass.async_block_till_done()
+    plain_value(hass, "a1", "state", "armed_home")
+    plain_value(hass, "v1", "state", "cleaning")
+    plain_value(hass, "v1", "battery", "80")
+    await hass.async_block_till_done()
+    alarm = entity_id(hass, "alarm_control_panel", "a1-alarm_control_panel")
+    assert hass.states.get(alarm).state == "armed_home"
+    await hass.services.async_call("alarm_control_panel", "alarm_disarm", {"entity_id": alarm}, blocking=True)
+    assert_published(mqtt_mock, "il/a1/disarm/set", "")
+    vacuum = entity_id(hass, "vacuum", "v1-vacuum")
+    assert hass.states.get(vacuum).state == "cleaning"
+    await hass.services.async_call("vacuum", "start", {"entity_id": vacuum}, blocking=True)
+    assert_published(mqtt_mock, "il/v1/start/set", "")
+    battery = hass.states.get(entity_id(hass, "sensor", "v1-battery"))
+    assert battery.attributes["device_class"] == "battery"
+
+
+async def test_a_select_value_the_descriptor_does_not_list_is_shown(hass, mqtt_mock):
+    await setup(hass)
+    announce(hass, {"il": 0, "id": "s1", "props": {
+        "m": {"type": "select", "rw": True, "options": ["a", "b"]},
+        "r": {"type": "select", "options": ["a", "b"]},
+    }})
+    await hass.async_block_till_done()
+    plain_value(hass, "s1", "m", "zzz")
+    plain_value(hass, "s1", "r", "zzz")
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id(hass, "select", "s1-m")).state == "zzz"
+    assert hass.states.get(entity_id(hass, "sensor", "s1-r")).state == "zzz"

@@ -5,6 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components import mqtt
+from homeassistant.components.alarm_control_panel import (
+    AlarmControlPanelEntity,
+    AlarmControlPanelEntityFeature,
+    AlarmControlPanelState,
+)
+from homeassistant.components.vacuum import StateVacuumEntity, VacuumActivity, VacuumEntityFeature
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
@@ -45,6 +51,8 @@ from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.components.text import TextEntity
 from homeassistant.const import ATTR_TEMPERATURE, EntityCategory, UnitOfTemperature
 from homeassistant.core import callback
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.util import dt as dt_util
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
@@ -108,10 +116,10 @@ class IlEntity(Entity):
 
     @property
     def available(self) -> bool:
-        if not self.dev.online:
+        if not self.dev.online or not self.hub.source_up(self.dev):
             return False
         req = self.spec.requires
-        return req is None or self.dev.values.get(req) is True
+        return req is None or req.met(self.dev.values)
 
     # ---- writing ---------------------------------------------------------------------
 
@@ -120,10 +128,15 @@ class IlEntity(Entity):
         if prop is None:
             return
         desc = self.dev.desc
+        # a control whose condition does not hold now is not written (il.md S-2)
+        requires = desc.props[prop].requires
+        if requires is not None and not requires.met(self.dev.values):
+            raise ServiceValidationError(f"{prop} needs {requires.prop} first")
         await mqtt.async_publish(
             self.hass,
             set_topic(desc, self.dev.topics, prop),
             encode_command(desc.props[prop], value),
+            qos=1,
         )
 
 
@@ -140,8 +153,19 @@ class IlSensor(IlEntity, SensorEntity):
             self._attr_options = list(spec.options)
 
     @property
+    def options(self) -> list[str] | None:
+        # a value the descriptor does not list is shown as it is (il.md V-3)
+        value = self._v()
+        if self._attr_device_class != SensorDeviceClass.ENUM:
+            return None
+        return list(self.spec.options) + ([value] if value is not None and value not in self.spec.options else [])
+
+    @property
     def native_value(self) -> Any:
-        return self._v()
+        value = self._v()
+        if self._attr_device_class == SensorDeviceClass.TIMESTAMP:
+            return dt_util.parse_datetime(value) if isinstance(value, str) else None
+        return value
 
 
 class IlBinarySensor(IlEntity, BinarySensorEntity):
@@ -195,12 +219,15 @@ class IlNumber(IlEntity, NumberEntity):
 class IlSelect(IlEntity, SelectEntity):
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
-        self._attr_options = list(spec.options)
+
+    @property
+    def options(self) -> list[str]:
+        value = self._v()
+        return list(self.spec.options) + ([value] if value is not None and value not in self.spec.options else [])
 
     @property
     def current_option(self) -> str | None:
-        value = self._v()
-        return value if value in self.spec.options else None
+        return self._v()
 
     async def async_select_option(self, option: str) -> None:
         await self._write("value", option)
@@ -628,7 +655,86 @@ class IlValve(IlEntity, ValveEntity):
         await self._write("opened", False)
 
 
+_ALARM_STATES = {s.value for s in AlarmControlPanelState}
+_ALARM_FEATURES = {
+    "arm_home": AlarmControlPanelEntityFeature.ARM_HOME,
+    "arm_away": AlarmControlPanelEntityFeature.ARM_AWAY,
+    "arm_night": AlarmControlPanelEntityFeature.ARM_NIGHT,
+}
+
+
+class IlAlarmControlPanel(IlEntity, AlarmControlPanelEntity):
+    _attr_code_arm_required = False
+
+    def __init__(self, hub, dev, spec) -> None:
+        super().__init__(hub, dev, spec)
+        features = AlarmControlPanelEntityFeature(0)
+        for role, feature in _ALARM_FEATURES.items():
+            if role in spec.slots:
+                features |= feature
+        self._attr_supported_features = features
+
+    @property
+    def alarm_state(self) -> AlarmControlPanelState | None:
+        return _enum(AlarmControlPanelState, self._v("alarm_state"))
+
+    async def async_alarm_disarm(self, code: str | None = None) -> None:
+        await self._write("disarm")
+
+    async def async_alarm_arm_home(self, code: str | None = None) -> None:
+        await self._write("arm_home")
+
+    async def async_alarm_arm_away(self, code: str | None = None) -> None:
+        await self._write("arm_away")
+
+    async def async_alarm_arm_night(self, code: str | None = None) -> None:
+        await self._write("arm_night")
+
+
+class IlVacuum(IlEntity, StateVacuumEntity):
+    def __init__(self, hub, dev, spec) -> None:
+        super().__init__(hub, dev, spec)
+        features = VacuumEntityFeature.STATE
+        for role, feature in (
+            ("start", VacuumEntityFeature.START),
+            ("pause", VacuumEntityFeature.PAUSE),
+            ("return_home", VacuumEntityFeature.RETURN_HOME),
+            ("locate", VacuumEntityFeature.LOCATE),
+        ):
+            if role in spec.slots:
+                features |= feature
+        if "fan_speed" in spec.slots:
+            features |= VacuumEntityFeature.FAN_SPEED
+            self._attr_fan_speed_list = list(dev.desc.props[spec.slots["fan_speed"]].options)
+        self._attr_supported_features = features
+
+    @property
+    def activity(self) -> VacuumActivity | None:
+        return _enum(VacuumActivity, self._v("vacuum_state"))
+
+    @property
+    def fan_speed(self) -> str | None:
+        return self._v("fan_speed")
+
+    async def async_start(self) -> None:
+        await self._write("start")
+
+    async def async_pause(self) -> None:
+        await self._write("pause")
+
+    async def async_return_to_base(self, **kwargs: Any) -> None:
+        await self._write("return_home")
+
+    async def async_locate(self, **kwargs: Any) -> None:
+        await self._write("locate")
+
+    async def async_set_fan_speed(self, fan_speed: str, **kwargs: Any) -> None:
+        await self._write("fan_speed", fan_speed)
+
+
 ENTITY_CLASSES = {
+    "alarm_control_panel": IlAlarmControlPanel,
+    "vacuum": IlVacuum,
     "sensor": IlSensor,
     "binary_sensor": IlBinarySensor,
     "switch": IlSwitch,

@@ -67,6 +67,8 @@ class IlHub:
         self.auto_add = auto_add
         self.allowed = allowed or set()
         self._asked: set[str] = set()
+        self.offline_sources: set[str] = set()
+        self._unsub_presence: CALLBACK_TYPE | None = None
         self.devices: dict[str, Device] = {}
         self._adders: dict[str, Callable] = {}
         self._pending: dict[str, list] = {}
@@ -77,11 +79,17 @@ class IlHub:
 
     async def async_start(self) -> None:
         self._unsub = await mqtt.async_subscribe(self.hass, f"{self.il_prefix}/+", self._on_descriptor)
+        self._unsub_presence = await mqtt.async_subscribe(
+            self.hass, f"{self.il_prefix}/_producer/+", self._on_presence
+        )
 
     async def async_stop(self) -> None:
         if self._unsub:
             self._unsub()
             self._unsub = None
+        if self._unsub_presence:
+            self._unsub_presence()
+            self._unsub_presence = None
         for dev in list(self.devices.values()):
             self._release(dev)
         self.devices.clear()
@@ -109,6 +117,27 @@ class IlHub:
             self._pending.setdefault(platform, []).append(entity)
         else:
             adder([entity])
+
+    # ---- presence ----------------------------------------------------------------------
+
+    def source_up(self, dev: Device) -> bool:
+        """False while the producer of the device says it is offline (il-messages.md W-6)."""
+        return dev.desc.source not in self.offline_sources
+
+    @callback
+    def _on_presence(self, msg) -> None:
+        source = msg.topic.rsplit("/", 1)[-1]
+        payload = msg.payload.decode("utf-8", "replace") if isinstance(msg.payload, (bytes, bytearray)) else msg.payload
+        payload = payload.strip().lower()
+        if payload == "offline":
+            self.offline_sources.add(source)
+        elif payload == "online" or not payload:
+            self.offline_sources.discard(source)
+        else:
+            return
+        for dev in self.devices.values():
+            if dev.desc.source == source:
+                async_dispatcher_send(self.hass, signal(dev.desc.id))
 
     # ---- descriptors -------------------------------------------------------------------
 
@@ -263,7 +292,9 @@ class IlHub:
                 body = json.loads(msg.payload)
             except ValueError:
                 body = {"reason": str(msg.payload)}
-            data = {"device_id": dev.desc.id, "prop": body.get("prop"), "reason": body.get("reason")}
+            if not isinstance(body, dict):
+                body = {"reason": str(body)}
+            data = {"device_id": dev.desc.id, "prop": body.get("prop"), "code": body.get("code"), "reason": body.get("reason")}
             _LOGGER.warning("%s refused a command: %s", dev.desc.id, data)
             self.hass.bus.async_fire(EVENT_COMMAND_REJECTED, data)
 

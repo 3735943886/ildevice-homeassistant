@@ -277,9 +277,9 @@ def test_class_series_and_category_carry_over():
 
 def test_requires_travels_with_the_controls():
     _, specs = plan("F24VDD")
-    assert by_key(specs)["start"].requires == "remote_start"
+    assert by_key(specs)["start"].requires.prop == "remote_start"
     _, cooktop = plan("WBEY3GT")
-    assert by_key(cooktop)["right_remaining_time"].requires == "remote_start"
+    assert by_key(cooktop)["right_remaining_time"].requires.prop == "remote_start"
 
 
 def test_grouped_properties_are_named_with_their_label():
@@ -412,3 +412,37 @@ def test_a_valve_is_opened_and_closed_and_only_when_it_can_be_written():
 def test_an_event_property_is_an_event_entity_with_its_kinds_as_options():
     _, specs = sample("tuya_button")
     assert [(s.platform, s.options) for s in specs] == [("event", ("click", "double_click", "long_press"))]
+
+
+# ---- requires, role types, minimal composites ---------------------------------------------
+
+
+def test_requires_has_a_select_form():
+    desc = parse_descriptor({"id": "x", "props": {
+        "m": {"type": "select", "options": ["cool", "heat"]},
+        "t": {"type": "number", "rw": True, "requires": {"prop": "m", "in": ["cool"]}},
+        "bad": {"type": "number", "rw": True, "requires": {"prop": "m", "in": []}},
+    }})
+    req = desc.props["t"].requires
+    assert req.met({"m": "cool"}) and not req.met({"m": "heat"}) and not req.met({})
+    assert desc.props["bad"].requires is None
+
+
+def test_a_role_on_the_wrong_type_is_ignored():
+    desc = parse_descriptor({"id": "x", "kind": "fan", "props": {"p": {"type": "number", "rw": True, "role": "on"}}})
+    assert [s.platform for s in plan_entities(desc)] == ["number"]
+
+
+def test_a_climate_needs_only_a_target_temperature():
+    desc = parse_descriptor({"id": "x", "kind": "climate", "props": {
+        "t": {"type": "number", "rw": True, "role": "target_temperature", "unit": "\u00b0C"}}})
+    assert [s.platform for s in plan_entities(desc)] == ["climate"]
+    desc = parse_descriptor({"id": "x", "kind": "climate", "props": {
+        "c": {"type": "number", "role": "current_temperature"},
+        "p": {"type": "binary", "rw": True, "role": "on"}}})
+    assert [s.platform for s in plan_entities(desc)] == ["sensor", "switch"]
+
+
+def test_micro_is_normalised():
+    desc = parse_descriptor({"id": "x", "props": {"p": {"type": "number", "unit": "\u00b5g/m\u00b3"}}})
+    assert desc.props["p"].unit == "\u03bcg/m\u00b3"

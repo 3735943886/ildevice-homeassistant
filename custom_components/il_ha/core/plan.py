@@ -1,7 +1,8 @@
 """Which entities a descriptor becomes.
 
 A device's *kind* and the *roles* of its properties decide the composite entities (a `climate`,
-a `humidifier`, a `fan`, a `light`, a `cover`, a `lock`); every other property becomes a plain entity chosen by its type, and
+a `humidifier`, a `fan`, a `light`, a `cover`, a `lock`, a `siren`, a `valve`, an `alarm`,
+a `vacuum`); every other property becomes a plain entity chosen by its type, and
 its `class` / `series` / `category` say how it is classified. Nothing here looks at a model or a
 producer, so a device from any producer is planned the same way.
 """
@@ -11,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Mapping
 
-from .descriptor import Descriptor, Prop
+from .descriptor import Descriptor, Prop, Requires
 
 
 @dataclass(frozen=True)
@@ -37,8 +38,10 @@ class EntitySpec:
     min: float | None = None
     max: float | None = None
     step: float | None = None
-    requires: str | None = None
-    """A binary property that must be true for the entity to accept a command."""
+    requires: Requires | None = None
+    """A condition on another property for the whole entity to accept a command."""
+    slot_requires: Mapping[str, Requires] = field(default_factory=dict)
+    """Slot -> the condition on that one property, for a composite whose controls differ."""
 
 
 # kind -> (composite platform, slot roles it owns, roles it only reads, roles it needs)
@@ -48,7 +51,7 @@ _COMPOSITES = {
         ("on", "mode", "fan_speed", "target_temperature", "current_temperature",
          "swing_vertical", "swing_horizontal", "action", "current_humidity"),
         (),
-        ("target_temperature", "current_temperature"),
+        ("target_temperature",),
     ),
     "humidifier": (
         "humidifier",
@@ -82,6 +85,33 @@ _COMPOSITES = {
     ),
     "siren": ("siren", ("on",), (), ("on",)),
     "valve": ("valve", ("opened",), (), ("opened",)),
+    "alarm": (
+        "alarm_control_panel",
+        ("alarm_state", "arm_home", "arm_away", "arm_night", "disarm"),
+        (),
+        ("alarm_state",),
+    ),
+    "vacuum": (
+        "vacuum",
+        ("vacuum_state", "start", "pause", "return_home", "locate", "fan_speed"),
+        (),
+        ("vacuum_state",),
+    ),
+}
+
+# Registry of il.md section 9: a role's type. A property that carries the role with another type
+# has no role (O-5).
+_ROLE_TYPES = {
+    "available": "binary", "on": "binary", "mode": "select", "fan_speed": "select",
+    "target_humidity": "number", "current_humidity": "number", "current_temperature": "number",
+    "target_temperature": "number", "swing_vertical": "binary", "swing_horizontal": "binary",
+    "action": "select", "brightness": "number", "color_temperature": "number", "color": "text",
+    "color_mode": "select", "position": "number", "tilt": "number", "motion": "select",
+    "open": "trigger", "close": "trigger", "stop": "trigger", "locked": "binary",
+    "unlatch": "trigger", "opened": "binary", "alarm_state": "select", "arm_home": "trigger",
+    "arm_away": "trigger", "arm_night": "trigger", "disarm": "trigger", "vacuum_state": "select",
+    "start": "trigger", "pause": "trigger", "return_home": "trigger", "locate": "trigger",
+    "battery": "number",
 }
 
 # a descriptor `class` -> the device class Home Assistant knows it as
@@ -128,8 +158,8 @@ def _generic(desc: Descriptor, prop: Prop, unique_id: str) -> EntitySpec:
                 min=prop.min, max=prop.max, step=prop.step, **common,
             )
         return EntitySpec(
-            platform="sensor", device_class=prop.klass, unit=prop.unit,
-            state_class={"counter": "total_increasing", "gauge": "measurement"}.get(prop.series or ""),
+            platform="sensor", device_class=prop.klass or ("battery" if prop.role == "battery" else None),
+            unit=prop.unit, state_class={"counter": "total_increasing", "gauge": "measurement"}.get(prop.series or ""),
             **common,
         )
     if prop.type == "select":
@@ -138,6 +168,8 @@ def _generic(desc: Descriptor, prop: Prop, unique_id: str) -> EntitySpec:
         # a read-only select is an enumeration sensor
         return EntitySpec(platform="sensor", device_class="enum", options=prop.options, **common)
     if prop.type == "text":
+        if not prop.rw and prop.klass == "datetime":
+            return EntitySpec(platform="sensor", device_class="timestamp", **common)
         return EntitySpec(platform="text" if prop.rw else "sensor", **common)
     if prop.type == "event":
         return EntitySpec(platform="event", device_class=prop.klass, options=prop.options, **common)
@@ -156,10 +188,10 @@ def _composite(
     platform, owned_roles, shared_roles, needed = rule
     by_role: dict[str, Prop] = {}
     for prop in props.values():
-        if prop.role and prop.role not in by_role:
+        if prop.role and prop.role not in by_role and _ROLE_TYPES.get(prop.role, prop.type) == prop.type:
             by_role[prop.role] = prop
     if platform == "climate":
-        if not (any(r in by_role for r in needed) and ("on" in by_role or "mode" in by_role)):
+        if not all(r in by_role for r in needed):
             return None, set()
     elif platform == "cover":
         if not {"position", "open", "close"} & by_role.keys():
@@ -189,9 +221,10 @@ def _composite(
     elif platform == "lock":
         extra = dict(requires=by_role["locked"].requires)
     key = key or platform
+    slot_requires = {r: by_role[r].requires for r in slots if by_role[r].requires is not None}
     spec = EntitySpec(
         platform=platform, key=key, unique_id=uid(key), name=name,
-        slots=slots, shared=shared, **extra,
+        slots=slots, shared=shared, slot_requires=slot_requires, **extra,
     )
     return spec, set(slots.values())
 

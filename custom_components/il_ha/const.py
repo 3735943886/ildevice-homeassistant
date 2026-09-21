@@ -14,6 +14,7 @@ DEFAULT_OFFLINE_GRACE = 0  # seconds a device may report unavailable before enti
 EVENT_COMMAND_REJECTED = f"{DOMAIN}_command_rejected"
 
 PLATFORMS = [
+    "alarm_control_panel",
     "binary_sensor",
     "button",
     "climate",
@@ -29,5 +30,6 @@ PLATFORMS = [
     "siren",
     "switch",
     "text",
+    "vacuum",
     "valve",
 ]

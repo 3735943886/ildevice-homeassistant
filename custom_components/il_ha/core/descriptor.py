@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping
 
 # The six value types of the IL. A property of any other type is skipped, not an error.
 TYPES = ("binary", "number", "select", "text", "trigger", "event")
@@ -14,12 +14,28 @@ class DescriptorError(ValueError):
 
 
 @dataclass(frozen=True)
+class Requires:
+    """A condition on another property that must hold for a write to be accepted (il.md, section 3):
+    a binary property that is `true`, or (`in_` given) a select whose value is one of `in_`."""
+
+    prop: str
+    in_: tuple[str, ...] | None = None
+
+    def met(self, values: Mapping[str, Any]) -> bool:
+        """A value that has not been reported does not satisfy it."""
+        value = values.get(self.prop)
+        if self.in_ is None:
+            return value is True
+        return isinstance(value, str) and value in self.in_
+
+
+@dataclass(frozen=True)
 class Prop:
     name: str
     type: str
     rw: bool = False
     role: str | None = None
-    requires: str | None = None
+    requires: Requires | None = None
     group: str | None = None
     unit: str | None = None
     min: float | None = None
@@ -74,6 +90,22 @@ def _opt_num(value: Any) -> float | None:
     return float(value)
 
 
+def _unit(value: Any) -> str | None:
+    # micro is U+03BC; a producer that wrote U+00B5 means the same (il.md U-2)
+    unit = _opt_str(value)
+    return unit.replace("\u00b5", "\u03bc") if unit else unit
+
+
+def _requires(value: Any) -> Requires | None:
+    if isinstance(value, str) and value:
+        return Requires(value)
+    if isinstance(value, dict) and _opt_str(value.get("prop")):
+        allowed = value.get("in")
+        if isinstance(allowed, list) and allowed and all(isinstance(o, str) for o in allowed):
+            return Requires(value["prop"], tuple(allowed))
+    return None
+
+
 def _str_map(value: Any) -> dict[str, str]:
     if not isinstance(value, dict):
         return {}
@@ -89,9 +121,9 @@ def _parse_prop(name: str, doc: Any) -> Prop | None:
         type=doc["type"],
         rw=doc.get("rw") is True,
         role=_opt_str(doc.get("role")),
-        requires=_opt_str(doc.get("requires")),
+        requires=_requires(doc.get("requires")),
         group=_opt_str(doc.get("group")),
-        unit=_opt_str(doc.get("unit")),
+        unit=_unit(doc.get("unit")),
         min=_opt_num(doc.get("min")),
         max=_opt_num(doc.get("max")),
         step=_opt_num(doc.get("step")),
