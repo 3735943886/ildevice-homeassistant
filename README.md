@@ -1,9 +1,5 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="custom_components/ildevice/brand/dark_logo@2x.png">
-    <img src="custom_components/ildevice/brand/logo@2x.png" alt="IL device" width="420">
-  </picture>
-</p>
+![IL device](custom_components/ildevice/brand/logo@2x.png#gh-light-mode-only)
+![IL device](custom_components/ildevice/brand/dark_logo@2x.png#gh-dark-mode-only)
 
 # IL device for Home Assistant (il-ha)
 
