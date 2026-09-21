@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components import mqtt
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
     AlarmControlPanelEntityFeature,
@@ -88,6 +87,8 @@ class IlEntity(Entity):
         desc = dev.desc
         self._attr_unique_id = spec.unique_id
         self._attr_name = spec.name
+        if spec.icon:
+            self._attr_icon = spec.icon
         self._attr_entity_category = _enum(EntityCategory, spec.entity_category)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, desc.id)},
@@ -132,11 +133,8 @@ class IlEntity(Entity):
         requires = desc.props[prop].requires
         if requires is not None and not requires.met(self.dev.values):
             raise ServiceValidationError(f"{prop} needs {requires.prop} first")
-        await mqtt.async_publish(
-            self.hass,
-            set_topic(desc, self.dev.topics, prop),
-            encode_command(desc.props[prop], value),
-            qos=1,
+        await self.hub.transport.publish(
+            set_topic(desc, self.dev.topics, prop), encode_command(desc.props[prop], value), qos=1
         )
 
 
@@ -424,9 +422,15 @@ class IlFan(IlEntity, FanEntity):
         props = dev.desc.props
         features = FanEntityFeature.TURN_ON | FanEntityFeature.TURN_OFF
         self._speeds: list[str] = []
-        if "fan_speed" in spec.slots:
+        if "speed" in spec.slots:                       # a percentage is preferred to named levels (il.md, `speed`)
+            features |= FanEntityFeature.SET_SPEED
+        elif "fan_speed" in spec.slots:
             features |= FanEntityFeature.SET_SPEED
             self._speeds = list(props[spec.slots["fan_speed"]].options)
+        if "oscillate" in spec.slots:
+            features |= FanEntityFeature.OSCILLATE
+        if "direction" in spec.slots:
+            features |= FanEntityFeature.DIRECTION
         if "mode" in spec.slots:
             features |= FanEntityFeature.PRESET_MODE
             self._attr_preset_modes = list(props[spec.slots["mode"]].options)
@@ -434,7 +438,15 @@ class IlFan(IlEntity, FanEntity):
 
     @property
     def speed_count(self) -> int:
-        return len(self._speeds) or 1
+        return 100 if "speed" in self.spec.slots else len(self._speeds) or 1
+
+    @property
+    def oscillating(self) -> bool | None:
+        return self._v("oscillate")
+
+    @property
+    def current_direction(self) -> str | None:
+        return self._v("direction")
 
     @property
     def is_on(self) -> bool | None:
@@ -442,6 +454,9 @@ class IlFan(IlEntity, FanEntity):
 
     @property
     def percentage(self) -> int | None:
+        if "speed" in self.spec.slots:
+            value = self._v("speed")
+            return None if value is None else round(value)
         value = self._v("fan_speed")
         if not self._speeds or value not in self._speeds:
             return None
@@ -464,11 +479,19 @@ class IlFan(IlEntity, FanEntity):
     async def async_set_percentage(self, percentage: int) -> None:
         if percentage == 0:
             await self._write("on", False)
+        elif "speed" in self.spec.slots:
+            await self._write("speed", percentage)
         elif self._speeds:
             await self._write("fan_speed", percentage_to_ordered_list_item(self._speeds, percentage))
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         await self._write("mode", preset_mode)
+
+    async def async_oscillate(self, oscillating: bool) -> None:
+        await self._write("oscillate", oscillating)
+
+    async def async_set_direction(self, direction: str) -> None:
+        await self._write("direction", direction)
 
 
 class IlLight(IlEntity, LightEntity):

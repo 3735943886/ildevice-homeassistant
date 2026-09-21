@@ -707,3 +707,18 @@ async def test_a_select_value_the_descriptor_does_not_list_is_shown(hass, mqtt_m
     await hass.async_block_till_done()
     assert hass.states.get(entity_id(hass, "select", "s1-m")).state == "zzz"
     assert hass.states.get(entity_id(hass, "sensor", "s1-r")).state == "zzz"
+
+
+async def test_plain_entities_get_an_icon_from_what_they_are(hass, mqtt_mock):
+    await setup(hass)
+    announce(hass, descriptor("DHUM_056905_WW", "dhum1"))
+    await hass.async_block_till_done()
+    for prop, payload in [("available", "true"), ("uvnano", "true"), ("tank_full", "false"), ("fan", "low")]:
+        value(hass, "dhum1", prop, payload)
+    await hass.async_block_till_done()
+    icons = {u: hass.states.get(entity_id(hass, p, f"dhum1-{u}")).attributes.get("icon")
+             for p, u in (("switch", "uvnano"), ("binary_sensor", "tank_full"), ("select", "fan"))}
+    assert icons["uvnano"] == "mdi:shield-sun-outline" and icons["fan"] == "mdi:fan"
+    # an entity with a device class (the tank's `problem`, the humidity) is left to Home Assistant's own icon
+    assert icons["tank_full"] is None
+    assert "icon" not in hass.states.get(entity_id(hass, "sensor", "dhum1-humidity")).attributes

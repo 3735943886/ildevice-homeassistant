@@ -446,3 +446,29 @@ def test_a_climate_needs_only_a_target_temperature():
 def test_micro_is_normalised():
     desc = parse_descriptor({"id": "x", "props": {"p": {"type": "number", "unit": "\u00b5g/m\u00b3"}}})
     assert desc.props["p"].unit == "\u03bcg/m\u00b3"
+
+
+def test_a_valve_takes_the_descriptors_class_and_a_composite_of_settings_is_a_config_entity():
+    valve = parse_descriptor({"il": 0, "id": "v", "kind": "valve", "class": "water",
+                              "props": {"p": {"type": "binary", "rw": True, "role": "opened"}}})
+    (spec,) = plan_entities(valve)
+    assert (spec.platform, spec.device_class, spec.entity_category) == ("valve", "water", None)
+
+    backlight = parse_descriptor({"il": 0, "id": "s", "kind": "cover",
+                                  "groups": {"light": {"kind": "light"}},
+                                  "props": {"pos": {"type": "number", "rw": True, "role": "position", "min": 0, "max": 100},
+                                            "light": {"type": "binary", "rw": True, "role": "on", "group": "light",
+                                                      "category": "config"}}})
+    assert {s.platform: s.entity_category for s in plan_entities(backlight)} == {"cover": None, "light": "config"}
+
+
+def test_a_fan_takes_speed_oscillate_and_direction_as_its_own_roles():
+    desc = parse_descriptor({"il": 0, "id": "f", "kind": "fan", "props": {
+        "power": {"type": "binary", "rw": True, "role": "on"},
+        "pct": {"type": "number", "rw": True, "role": "speed", "unit": "%", "min": 1, "max": 100},
+        "swing": {"type": "binary", "rw": True, "role": "oscillate"},
+        "dir": {"type": "select", "rw": True, "role": "direction", "options": ["forward", "reverse"]},
+        "wrong": {"type": "select", "rw": True, "role": "speed", "options": ["a"]}}})
+    fan, *rest = plan_entities(desc)
+    assert fan.platform == "fan" and dict(fan.slots) == {"on": "power", "speed": "pct", "oscillate": "swing", "direction": "dir"}
+    assert [s.key for s in rest] == ["wrong"]                    # a role with the wrong type is no role (O-5)

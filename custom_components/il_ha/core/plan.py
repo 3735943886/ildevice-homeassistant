@@ -9,10 +9,11 @@ producer, so a device from any producer is planned the same way.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Mapping
 
 from .descriptor import Descriptor, Prop, Requires
+from .icons import icon_for
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,8 @@ class EntitySpec:
     """A condition on another property for the whole entity to accept a command."""
     slot_requires: Mapping[str, Requires] = field(default_factory=dict)
     """Slot -> the condition on that one property, for a composite whose controls differ."""
+    icon: str | None = None
+    """`mdi:...` for a plain entity that has no device class of its own to give it one (`icons.py`)."""
 
 
 # kind -> (composite platform, slot roles it owns, roles it only reads, roles it needs)
@@ -61,7 +64,7 @@ _COMPOSITES = {
     ),
     "fan": (
         "fan",
-        ("on", "mode", "fan_speed"),
+        ("on", "mode", "fan_speed", "speed", "oscillate", "direction"),
         (),
         ("on",),
     ),
@@ -103,6 +106,7 @@ _COMPOSITES = {
 # has no role (O-5).
 _ROLE_TYPES = {
     "available": "binary", "on": "binary", "mode": "select", "fan_speed": "select",
+    "speed": "number", "oscillate": "binary", "direction": "select",
     "target_humidity": "number", "current_humidity": "number", "current_temperature": "number",
     "target_temperature": "number", "swing_vertical": "binary", "swing_horizontal": "binary",
     "action": "select", "brightness": "number", "color_temperature": "number", "color": "text",
@@ -140,6 +144,12 @@ def _category(prop: Prop) -> str | None:
 
 
 def _generic(desc: Descriptor, prop: Prop, unique_id: str) -> EntitySpec:
+    spec = _plain(desc, prop, unique_id)
+    icon = icon_for(spec.platform, prop.name, spec.unit, spec.device_class)
+    return replace(spec, icon=icon) if icon else spec
+
+
+def _plain(desc: Descriptor, prop: Prop, unique_id: str) -> EntitySpec:
     common = dict(
         key=prop.name,
         unique_id=unique_id,
@@ -220,10 +230,14 @@ def _composite(
         extra = dict(device_class=_COVER_CLASSES.get(klass or "", klass))
     elif platform == "lock":
         extra = dict(requires=by_role["locked"].requires)
+    elif platform == "valve":
+        extra = dict(device_class=klass)
     key = key or platform
     slot_requires = {r: by_role[r].requires for r in slots if by_role[r].requires is not None}
+    # a composite made of settings (a light's backlight) is itself a config entity: its own properties say so
+    category = next((c for r in slots.values() if (c := _category(props[r]))), None)
     spec = EntitySpec(
-        platform=platform, key=key, unique_id=uid(key), name=name,
+        platform=platform, key=key, unique_id=uid(key), name=name, entity_category=category,
         slots=slots, shared=shared, slot_requires=slot_requires, **extra,
     )
     return spec, set(slots.values())
