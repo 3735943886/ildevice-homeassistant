@@ -11,24 +11,22 @@ from the descriptor alone.
 ## Setup
 
 Requires Home Assistant's `mqtt` integration. Install this repository as a custom repository in
-HACS (or copy `custom_components/ildevice`), restart, and add the **IL device** integration. Add it once per hub (see [Hubs](#hubs)).
+HACS (or copy `custom_components/ildevice`), restart, and add the **IL device** integration. Add it again for each topic prefix (see [Several hubs](#several-hubs)).
 
 | option | meaning |
 |---|---|
-| Topic prefix | The ildevice prefix the producers publish under (default `il`), for example `il/tuya`. Each entry is a hub, so it must be unique. |
+| Topic prefix | The ildevice prefix the producers publish under (default `il`), for example `il/tuya`. Each entry has one prefix, so it must be unique. |
 | Seconds before a device is shown unavailable | Keeps a short outage from showing (default `0`). |
 | Legacy entity ids | JSON aliases that keep the unique ids of an earlier integration, see below. |
 | Add discovered devices automatically | Skip the add / ignore question, see below. |
 
-## Hubs
+## Several hubs
 
-Each entry of the integration is a **hub**: one topic prefix, such as `il/tuya` or `il/thinq`. Add the
-integration again for each producer and give it its own prefix. Every hub shows up in Home Assistant
-as a device named after its prefix, and the devices found under that prefix are placed beneath it
-(`via_device`). A discovered device is offered to, and added to, the hub it was found on. Each hub has
-its own options (auto-add, offline grace, legacy ids); changing a hub's prefix renames it. A prefix can
-be used by one hub only, and a hub device is removed together with its entry, not on its own. Device
-ids should be unique across hubs, as they are the device identifier and the base of the unique ids.
+Add the integration once per topic prefix, such as `il/tuya` or `il/thinq`: each entry is its own hub
+with its own options (auto-add, offline grace, legacy ids) and shows up in the integration's list under
+its prefix, with its devices beneath it. A discovered device is offered to, and added to, the entry it
+was found on. Changing an entry's prefix renames it. A prefix can be used by one entry only. Device ids
+should be unique across entries, as they are the device identifier and the base of the unique ids.
 
 ## How it works
 

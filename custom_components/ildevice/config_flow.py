@@ -61,7 +61,7 @@ class IlConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Each entry is a hub: one topic prefix (`il/tuya`, `il/thinq`, ...). Add the integration again for another."""
+        """Each entry has its own topic prefix (`il/tuya`, `il/thinq`, ...); add the integration again for another."""
         errors: dict[str, str] = {}
         if user_input is not None:
             user_input = {**user_input, CONF_IL_PREFIX: _clean_prefix(user_input[CONF_IL_PREFIX])}

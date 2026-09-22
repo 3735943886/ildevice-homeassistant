@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "IL device",
-        "description": "A hub: the devices that publish ildevice descriptors under one MQTT topic prefix, for example il/tuya or il/thinq. Add the integration again for each producer.",
+        "description": "The devices that publish ildevice descriptors under one MQTT topic prefix, for example il/tuya or il/thinq. Add the integration again for another prefix.",
         "data": {
           "il_prefix": "Topic prefix",
           "offline_grace": "Seconds before a device is shown unavailable",

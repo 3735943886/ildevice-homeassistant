@@ -95,7 +95,6 @@ class IlEntity(Entity):
             name=desc.label or desc.model or desc.id,
             manufacturer=desc.vendor,
             model=desc.model,
-            via_device_id=hub.hub_device_id,
         )
 
     async def async_added_to_hass(self) -> None:

@@ -40,7 +40,7 @@ def parse_aliases(text: str) -> dict[str, dict[str, str]]:
 
 def build_hub(
     hass: HomeAssistant, options: Mapping, transport: Transport | None = None, platform: str = DOMAIN,
-    entry_id: str | None = None, hub_identifier: str | None = None,
+    entry_id: str | None = None,
 ) -> IlHub:
     """`options` are the integration's options (`const.CONF_*`); `transport` defaults to Home Assistant's `mqtt`."""
     return IlHub(
@@ -53,5 +53,4 @@ def build_hub(
         transport=transport,
         platform=platform,
         entry_id=entry_id,
-        hub_identifier=hub_identifier,
     )

@@ -45,13 +45,9 @@ class IlHub:
         transport: Transport | None = None,
         platform: str = DOMAIN,
         entry_id: str | None = None,
-        hub_identifier: str | None = None,
     ) -> None:
         self.hass = hass
         self.entry_id = entry_id
-        self.hub_identifier = hub_identifier
-        """The hub's device identifier: its devices are placed under it (`via_device_id`)."""
-        self._hub_device_id: str | None = None
         self.transport: Transport = transport or HaMqttTransport(hass)
         self.platform = platform
         """The integration domain the entities are registered under (`ildevice`, or a host that embeds this)."""
@@ -84,16 +80,6 @@ class IlHub:
     @property
     def il_prefix(self) -> str:
         return self.model.il_prefix
-
-    @property
-    def hub_device_id(self) -> str | None:
-        """The registry id of the hub's device (what `via_device_id` takes), looked up once; None if there is none."""
-        if self._hub_device_id is None and self.hub_identifier and self.entry_id:
-            device = dr.async_get(self.hass).async_get_device_by_identifier(
-                (DOMAIN, self.hub_identifier), self.entry_id
-            )
-            self._hub_device_id = device.id if device else None
-        return self._hub_device_id
 
     def source_up(self, dev: Device) -> bool:
         return self.model.source_up(dev)

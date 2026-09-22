@@ -361,7 +361,7 @@ def offers(hass):
 
 
 def device_ids(hass):
-    return {i[1] for d in dr.async_get(hass).devices for i in d.identifiers if i[0] == DOMAIN and not i[1].startswith("hub:")}
+    return {i[1] for d in dr.async_get(hass).devices for i in d.identifiers if i[0] == DOMAIN}
 
 
 async def test_a_new_device_is_offered_and_not_created(hass, mqtt_mock):
@@ -765,22 +765,19 @@ async def test_a_lock_shows_its_states_between(hass, mqtt_mock):
 # ---- several hubs: one entry per topic prefix ------------------------------------------
 
 
-async def test_each_prefix_is_a_hub_with_its_devices_under_it(hass, mqtt_mock):
-    await setup(hass, il_prefix="il/tuya")
-    await setup(hass, il_prefix="il/thinq")
-    doc = descriptor("DHUM_056905_WW", "dhum1")
-    async_fire_mqtt_message(hass, "il/thinq/dhum1", json.dumps(doc))
+async def test_each_prefix_is_its_own_entry_with_its_own_devices(hass, mqtt_mock):
+    tuya_entry = await setup(hass, il_prefix="il/tuya")
+    thinq_entry = await setup(hass, il_prefix="il/thinq")
+    async_fire_mqtt_message(hass, "il/thinq/dhum1", json.dumps(descriptor("DHUM_056905_WW", "dhum1")))
     tdoc = tuya("tuya_light")
     async_fire_mqtt_message(hass, f"il/tuya/{tdoc['id']}", json.dumps(tdoc))
     await hass.async_block_till_done()
 
     registry = dr.async_get(hass)
-    hubs = {d.name: d for d in registry.devices if (DOMAIN, f"hub:{d.name}") in d.identifiers}
-    assert set(hubs) == {"il/tuya", "il/thinq"}
-    dhum = next(d for d in registry.devices if (DOMAIN, "dhum1") in d.identifiers)
-    light = next(d for d in registry.devices if (DOMAIN, tdoc["id"]) in d.identifiers)
-    assert dhum.via_device_id == hubs["il/thinq"].id
-    assert light.via_device_id == hubs["il/tuya"].id
+    assert {d.name for d in registry.devices} == {"Dehumidifier", tdoc["label"]}  # no device for a hub itself
+    (dhum,) = dr.async_entries_for_config_entry(registry, thinq_entry.entry_id)
+    (light,) = dr.async_entries_for_config_entry(registry, tuya_entry.entry_id)
+    assert (DOMAIN, "dhum1") in dhum.identifiers and (DOMAIN, tdoc["id"]) in light.identifiers
 
 
 async def test_a_prefix_can_be_a_hub_only_once(hass, mqtt_mock):
@@ -819,17 +816,10 @@ async def test_a_null_descriptor_removes_the_device_from_the_registry(hass, mqtt
     assert not er.async_get(hass).async_get_entity_id("humidifier", DOMAIN, "dhum1-humidifier")
 
 
-async def test_devices_are_placed_under_the_hub_by_registry_id(hass, mqtt_mock):
-    """`via_device` (an identifier tuple) is deprecated and an error in Home Assistant: hand over `via_device_id`."""
-    await setup(hass, il_prefix="il/tuya")
-    tdoc = tuya("tuya_light")
-    async_fire_mqtt_message(hass, f"il/tuya/{tdoc['id']}", json.dumps(tdoc))
+async def test_the_hub_device_of_an_earlier_version_is_removed(hass, mqtt_mock):
+    entry = MockConfigEntry(domain=DOMAIN, options={"il_prefix": "il/tuya", "devices": []})
+    entry.add_to_hass(hass)
+    dr.async_get(hass).async_get_or_create(config_entry_id=entry.entry_id, identifiers={(DOMAIN, "hub:il/tuya")})
+    assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
-    registry = dr.async_get(hass)
-    hub = next(d for d in registry.devices if d.name == "il/tuya")
-    light = next(d for d in registry.devices if (DOMAIN, tdoc["id"]) in d.identifiers)
-    assert light.via_device_id == hub.id
-    ent = er.async_get(hass).async_get(entity_id(hass, "light", f"{tdoc['id']}-light"))
-    entity = hass.data["light"].get_entity(ent.entity_id)
-    assert entity._attr_device_info.get("via_device_id") == hub.id
-    assert "via_device" not in entity._attr_device_info
+    assert list(dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)) == []
