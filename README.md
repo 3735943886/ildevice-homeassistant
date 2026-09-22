@@ -11,7 +11,8 @@ from the descriptor alone.
 ## Setup
 
 Requires Home Assistant's `mqtt` integration. Install this repository as a custom repository in
-HACS (or copy `custom_components/ildevice`), restart, and add the **IL device** integration. Add it again for each topic prefix (see [Several hubs](#several-hubs)).
+HACS (or copy `custom_components/ildevice`), restart, and add the **IL device** integration. Add
+it again for each topic prefix you use (see [Several hubs](#several-hubs)).
 
 | option | meaning |
 |---|---|
