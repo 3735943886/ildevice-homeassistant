@@ -4,10 +4,10 @@
   "codeowners": ["@3735943886"],
   "config_flow": true,
   "dependencies": ["mqtt"],
-  "documentation": "https://github.com/3735943886/il-ha",
+  "documentation": "https://github.com/3735943886/ildevice-homeassistant",
   "integration_type": "service",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/3735943886/il-ha/issues",
+  "issue_tracker": "https://github.com/3735943886/ildevice-homeassistant/issues",
   "requirements": [],
   "version": "0.0.1"
 }

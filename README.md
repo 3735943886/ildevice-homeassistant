@@ -1,6 +1,6 @@
 ![IL device](custom_components/ildevice/brand/icon.png)
 
-# IL device for Home Assistant (il-ha)
+# IL device for Home Assistant
 
 A Home Assistant integration for [ildevice](https://github.com/3735943886/ildevice) (Intermediate
 Layer device model). It turns the ildevice descriptors that producers publish over MQTT into
