@@ -10,6 +10,9 @@ requires-python = ">=3.13"
 license = "MIT"
 dependencies = []   # `custom_components.ildevice.core` needs nothing; the Home Assistant layer needs Home Assistant
 
+[project.optional-dependencies]
+test = ["pytest-homeassistant-custom-component"]
+
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

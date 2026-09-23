@@ -1,0 +1,49 @@
+name: Release
+
+# A pushed tag `v<version>` (e.g. v0.0.1) is the release trigger: tests run first, the tag is
+# checked against manifest.json so a stray tag can't ship the wrong version, and only then is
+# the GitHub release made, with the integration folder attached as a zip for a manual install.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install .[test]
+      - run: python -m pytest
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches manifest.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest="$(python3 -c 'import json; print(json.load(open("custom_components/ildevice/manifest.json"))["version"])')"
+          if [ "$tag" != "$manifest" ]; then
+            echo "tag v$tag does not match manifest.json version $manifest" >&2
+            exit 1
+          fi
+
+      - name: Zip the integration
+        run: |
+          cd custom_components
+          zip -r "$GITHUB_WORKSPACE/ildevice.zip" ildevice -x "ildevice/__pycache__/*"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: ildevice.zip
