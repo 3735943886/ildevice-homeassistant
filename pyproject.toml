@@ -6,12 +6,16 @@ build-backend = "hatchling.build"
 name = "il-ha"
 version = "0.0.1"
 description = "Home Assistant integration that turns IL descriptors into entities"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 license = "MIT"
 dependencies = []   # `custom_components.ildevice.core` needs nothing; the Home Assistant layer needs Home Assistant
 
 [project.optional-dependencies]
-test = ["pytest-homeassistant-custom-component"]
+# Pinned: unpinned, pip silently falls back to whatever release matches the resolver's
+# Python, which can be a much older Home Assistant with a different registry API (seen in
+# CI: py3.13 resolved to HA 2026.2.3 instead of this pin's 2026.9.3, and tests failed on
+# API differences that had nothing to do with the change being tested).
+test = ["pytest-homeassistant-custom-component==0.13.366"]
 
 
 [tool.pytest.ini_options]
