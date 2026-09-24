@@ -411,23 +411,6 @@ async def test_an_ignored_device_is_not_offered_again(hass, mqtt_mock):
     assert offers(hass) == [] and device_ids(hass) == set()
 
 
-async def test_devices_already_registered_stay_when_the_question_is_introduced(hass, mqtt_mock):
-    entry = MockConfigEntry(domain=DOMAIN, options={"il_prefix": "il"})  # an entry from before
-    entry.add_to_hass(hass)
-    dr.async_get(hass).async_get_or_create(
-        config_entry_id=entry.entry_id, identifiers={(DOMAIN, "dhum1")}
-    )
-    assert await hass.config_entries.async_setup(entry.entry_id)
-    await hass.async_block_till_done()
-    assert entry.options["devices"] == ["dhum1"]
-
-    announce(hass, descriptor("DHUM_056905_WW", "dhum1"))
-    announce(hass, descriptor("CST_570004_WW", "ac9"))
-    await hass.async_block_till_done()
-    assert "dhum1" in device_ids(hass)
-    assert [f["context"]["unique_id"] for f in offers(hass)] == ["ac9"]
-
-
 async def test_deleting_a_device_makes_it_a_new_offer(hass, mqtt_mock):
     from custom_components.ildevice import async_remove_config_entry_device
 
@@ -814,12 +797,3 @@ async def test_a_null_descriptor_removes_the_device_from_the_registry(hass, mqtt
     await hass.async_block_till_done()
     assert device_ids(hass) == set()
     assert not er.async_get(hass).async_get_entity_id("humidifier", DOMAIN, "dhum1-humidifier")
-
-
-async def test_the_hub_device_of_an_earlier_version_is_removed(hass, mqtt_mock):
-    entry = MockConfigEntry(domain=DOMAIN, options={"il_prefix": "il/tuya", "devices": []})
-    entry.add_to_hass(hass)
-    dr.async_get(hass).async_get_or_create(config_entry_id=entry.entry_id, identifiers={(DOMAIN, "hub:il/tuya")})
-    assert await hass.config_entries.async_setup(entry.entry_id)
-    await hass.async_block_till_done()
-    assert list(dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)) == []

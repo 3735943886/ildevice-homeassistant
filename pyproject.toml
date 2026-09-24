@@ -11,10 +11,8 @@ license = "MIT"
 dependencies = []   # `custom_components.ildevice.core` needs nothing; the Home Assistant layer needs Home Assistant
 
 [project.optional-dependencies]
-# Pinned: unpinned, pip silently falls back to whatever release matches the resolver's
-# Python, which can be a much older Home Assistant with a different registry API (seen in
-# CI: py3.13 resolved to HA 2026.2.3 instead of this pin's 2026.9.3, and tests failed on
-# API differences that had nothing to do with the change being tested).
+# Pinned: unpinned, pip falls back to whatever release matches the running Python, which can
+# be a much older Home Assistant with a different API.
 test = ["pytest-homeassistant-custom-component==0.13.366"]
 
 

@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 from .const import (
     CONF_DEVICES,
     DOMAIN,
-    HUB_PREFIX,
     PLATFORMS,
 )
 
@@ -25,25 +24,8 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    from homeassistant.helpers import device_registry as dr
-
     from .attach import build_hub
 
-    if CONF_DEVICES not in entry.options:
-        # An entry from before devices were asked about: the devices it already has stay.
-        registry = dr.async_get(hass)
-        known = sorted(
-            ident[1]
-            for device in dr.async_entries_for_config_entry(registry, entry.entry_id)
-            for ident in device.identifiers
-            if ident[0] == DOMAIN and not ident[1].startswith(HUB_PREFIX)
-        )
-        hass.config_entries.async_update_entry(entry, options={**entry.options, CONF_DEVICES: known})
-    # an earlier version made a device for the hub itself; the entry is the hub, so it goes
-    registry = dr.async_get(hass)
-    for stale in dr.async_entries_for_config_entry(registry, entry.entry_id):
-        if any(i[0] == DOMAIN and i[1].startswith(HUB_PREFIX) for i in stale.identifiers):
-            registry.async_remove_device(stale.id)
     hub = build_hub(hass, entry.options, entry_id=entry.entry_id)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = hub
     entry.async_on_unload(entry.add_update_listener(_reload))

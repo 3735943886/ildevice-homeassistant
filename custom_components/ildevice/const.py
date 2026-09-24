@@ -11,8 +11,6 @@ CONF_DEVICES = "devices"  # ids of the devices the user chose to add
 DEFAULT_IL_PREFIX = "il"
 DEFAULT_OFFLINE_GRACE = 0  # seconds a device may report unavailable before entities say so
 
-HUB_PREFIX = "hub:"  # identifier of the hub device an earlier version made; removed on setup
-
 EVENT_COMMAND_REJECTED = f"{DOMAIN}_command_rejected"
 
 PLATFORMS = [
