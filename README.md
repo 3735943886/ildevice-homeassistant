@@ -31,6 +31,10 @@ should be unique across entries, as they are the device identifier and the base 
 
 ## How it works
 
+[docs/examples.md](docs/examples.md) walks through a plug, a light, an air conditioner, a curtain
+with a light, a button and a valve on its own topics: what the producer publishes, the entities
+it becomes, and the MQTT messages for commands.
+
 - It subscribes to `<il_prefix>/+` (the retained descriptors) and `<il_prefix>/_producer/+`
   (producer presence). For each device it subscribes to the value topics and the `reject` topic the
   descriptor points at (`x-mqtt`, see `il-mqtt.md` in the ildevice repository).
