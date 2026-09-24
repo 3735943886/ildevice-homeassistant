@@ -11,7 +11,7 @@
           "auto_add": "Add discovered devices automatically"
         },
         "data_description": {
-          "aliases": "{\"MODEL or *\": {\"ENTITY_KEY\": \"KEY_AN_EARLIER_INTEGRATION_USED\"}}, to keep existing unique ids.",
+          "aliases": "{aliases_example}, to keep existing unique ids.",
           "auto_add": "When off, each new device is offered first, and can be added or ignored."
         }
       },

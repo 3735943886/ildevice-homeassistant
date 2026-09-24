@@ -21,6 +21,11 @@ from .const import (
 )
 
 
+# Shown in the aliases field description. Passed as a placeholder because hassfest rejects
+# literal braces and angle brackets in strings.json.
+_ALIASES_EXAMPLE = '{"<model or *>": {"<entity key>": "<key an earlier integration used>"}}'
+
+
 def _schema(prefix: str, grace: int, aliases: str, auto_add: bool) -> vol.Schema:
     return vol.Schema(
         {
@@ -78,6 +83,7 @@ class IlConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=_schema(DEFAULT_IL_PREFIX, DEFAULT_OFFLINE_GRACE, "", False),
             errors=errors,
+            description_placeholders={"aliases_example": _ALIASES_EXAMPLE},
         )
 
     async def async_step_integration_discovery(self, discovery_info: dict[str, Any]) -> ConfigFlowResult:
