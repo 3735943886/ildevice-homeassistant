@@ -88,6 +88,33 @@ integration created, give aliases in the options, as JSON keyed by model (`*` fo
 {"DHUM_056905_WW": {"uvnano": "uv_nano", "tank_full": "bucket_full"}, "*": {}}
 ```
 
+## Compared with MQTT discovery
+
+Home Assistant's own MQTT discovery also builds devices from retained MQTT messages. It has no
+setup, and any producer that follows it works with nothing extra installed. This integration
+needs a producer that publishes ildevice descriptors, and in return:
+
+- **One descriptor per device, not one config per entity.** The producer says what each property
+  is (its role, type and unit), not which Home Assistant entity to build. The same descriptor
+  serves any other ildevice consumer.
+- **Devices made of several parts.** Roles become climate, humidifier, fan, light, cover, lock,
+  valve, siren, alarm and vacuum entities. Groups let one device hold several of them, such as a
+  light and a cover, next to its plain sensors and switches.
+- **Separate hubs per topic prefix.** MQTT discovery has one discovery prefix for everything.
+  Here `il/tuya` and `il/thinq` can be separate entries, each with its own auto-add, offline grace
+  and alias options, and each lists its own devices.
+- **You choose which devices to add.** A discovered device is offered to add or ignore, rather
+  than created at once.
+- **Refused commands are reported.** A producer can refuse a command on the device's `reject`
+  topic, and Home Assistant fires `ildevice_command_rejected` with the reason. A control whose
+  `requires` condition does not hold is unavailable, rather than sending a command that will fail.
+- **Availability comes from the producer too.** When a producer goes offline, all of its devices
+  go unavailable. The offline grace keeps a short outage from showing.
+- **Unique ids can be kept.** Aliases map entity keys to the ones that an earlier integration
+  used (see [Keeping the ids](#keeping-the-ids-of-an-earlier-integration)).
+- **It also runs without a broker.** Another integration can embed the consumer with an in-process
+  transport (see [Embedding](#embedding)).
+
 ## Layout
 
 ```
