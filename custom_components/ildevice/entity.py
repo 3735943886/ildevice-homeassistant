@@ -42,7 +42,7 @@ from homeassistant.components.light import (
 )
 from homeassistant.components.lock import LockEntity, LockEntityFeature
 from homeassistant.components.siren import SirenEntity, SirenEntityFeature
-from homeassistant.components.valve import ValveEntity, ValveEntityFeature
+from homeassistant.components.valve import ValveDeviceClass, ValveEntity, ValveEntityFeature
 from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
 from homeassistant.components.select import SelectEntity
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
@@ -694,6 +694,10 @@ class IlSiren(IlEntity, SirenEntity):
 class IlValve(IlEntity, ValveEntity):
     _attr_reports_position = False
     _attr_supported_features = ValveEntityFeature.OPEN | ValveEntityFeature.CLOSE
+
+    def __init__(self, hub, dev, spec) -> None:
+        super().__init__(hub, dev, spec)
+        self._attr_device_class = _enum(ValveDeviceClass, spec.device_class)
 
     @property
     def is_closed(self) -> bool | None:

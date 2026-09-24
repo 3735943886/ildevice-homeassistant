@@ -3,6 +3,7 @@
   "id": "valve01",
   "source": "rustuya",
   "kind": "valve",
+  "class": "water",
   "vendor": "Tuya",
   "identifiers": {
     "tuya_id": "valve01"

@@ -564,6 +564,7 @@ async def test_a_valve(hass, mqtt_mock):
     await hass.async_block_till_done()
     vid = entity_id(hass, "valve", "valve01-valve")
     assert hass.states.get(vid).state == "open"
+    assert hass.states.get(vid).attributes.get("device_class") == "water"      # the descriptor's class
     await hass.services.async_call("valve", "close_valve", {"entity_id": vid}, blocking=True)
     assert_published(mqtt_mock, "tuya/valve01/switch/set", "false")
     tuya_value(hass, "valve01", "switch", "false")
