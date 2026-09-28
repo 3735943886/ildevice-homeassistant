@@ -7,9 +7,8 @@ config entry, and hands each platform's `async_add_entities` to `hub.register_pl
 
 from __future__ import annotations
 
-import json
 import logging
-from typing import Mapping
+from collections.abc import Mapping
 
 from homeassistant.core import HomeAssistant
 
@@ -19,23 +18,14 @@ from .const import (
     CONF_DEVICES,
     CONF_IL_PREFIX,
     CONF_OFFLINE_GRACE,
-    DEFAULT_IL_PREFIX,
-    DEFAULT_OFFLINE_GRACE,
     DOMAIN,
+    with_defaults,
 )
+from .core import parse_aliases
 from .core.transport import Transport
 from .hub import IlHub
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def parse_aliases(text: str) -> dict[str, dict[str, str]]:
-    try:
-        data = json.loads(text) if text.strip() else {}
-    except ValueError:
-        _LOGGER.error("the legacy entity id option is not valid JSON; ignoring it")
-        return {}
-    return data if isinstance(data, dict) else {}
 
 
 def build_hub(
@@ -43,13 +33,17 @@ def build_hub(
     entry_id: str | None = None,
 ) -> IlHub:
     """`options` are the integration's options (`const.CONF_*`); `transport` defaults to Home Assistant's `mqtt`."""
+    options = with_defaults(options)
+    aliases = parse_aliases(options[CONF_ALIASES])
+    if aliases is None:
+        _LOGGER.error("the legacy entity id option is not valid JSON aliases; ignoring it")
     return IlHub(
         hass,
-        il_prefix=options.get(CONF_IL_PREFIX, DEFAULT_IL_PREFIX),
-        offline_grace=options.get(CONF_OFFLINE_GRACE, DEFAULT_OFFLINE_GRACE),
-        aliases=parse_aliases(options.get(CONF_ALIASES, "")),
-        auto_add=options.get(CONF_AUTO_ADD, False),
-        allowed=set(options.get(CONF_DEVICES, [])),
+        il_prefix=options[CONF_IL_PREFIX],
+        offline_grace=options[CONF_OFFLINE_GRACE],
+        aliases=aliases or {},
+        auto_add=options[CONF_AUTO_ADD],
+        allowed=set(options[CONF_DEVICES]),
         transport=transport,
         platform=platform,
         entry_id=entry_id,

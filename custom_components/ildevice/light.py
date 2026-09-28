@@ -1,13 +1,5 @@
 """The light platform: entities are created by the hub as descriptors arrive."""
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from .platform_setup import platform_setup
 
-from .const import DOMAIN
-
-
-async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
-) -> None:
-    hass.data[DOMAIN][entry.entry_id].register_platform("light", async_add_entities)
+async_setup_entry = platform_setup(__name__)

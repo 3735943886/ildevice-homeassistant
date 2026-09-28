@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any
 
 # The six value types of the IL. A property of any other type is skipped, not an error.
 TYPES = ("binary", "number", "select", "text", "trigger", "event")
+SERIES = ("gauge", "counter")
+CATEGORIES = ("diagnostic", "config")
 
 
 class DescriptorError(ValueError):
@@ -79,15 +82,23 @@ class Descriptor:
     groups: dict[str, Group] = field(default_factory=dict)
     """Groups that carry a `kind`; a group without one is only a label for its properties."""
 
+    @property
+    def display_name(self) -> str:
+        return self.label or self.model or self.id
+
 
 def _opt_str(value: Any) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
 def _opt_num(value: Any) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     return float(value)
+
+
+def _one_of(value: Any, allowed: tuple[str, ...]) -> str | None:
+    return value if value in allowed else None
 
 
 def _unit(value: Any) -> str | None:
@@ -130,8 +141,8 @@ def _parse_prop(name: str, doc: Any) -> Prop | None:
         options=tuple(o for o in options if isinstance(o, str)) if isinstance(options, list) else (),
         label=_opt_str(doc.get("label")),
         klass=_opt_str(doc.get("class")),
-        series=doc.get("series") if doc.get("series") in ("gauge", "counter") else None,
-        category=doc.get("category") if doc.get("category") in ("diagnostic", "config") else None,
+        series=_one_of(doc.get("series"), SERIES),
+        category=_one_of(doc.get("category"), CATEGORIES),
         x_mqtt=_str_map(doc.get("x-mqtt")),
     )
 
@@ -147,17 +158,13 @@ def parse_descriptor(doc: Any) -> Descriptor:
     raw_props = doc.get("props")
     if not isinstance(raw_props, dict):
         raise DescriptorError("a descriptor needs props")
-    props = {}
-    for name, body in raw_props.items():
-        prop = _parse_prop(name, body)
-        if prop is not None:
-            props[name] = prop
-    groups = {}
+    props = {name: prop for name, body in raw_props.items() if (prop := _parse_prop(name, body)) is not None}
     raw_groups = doc.get("groups")
-    if isinstance(raw_groups, dict):
-        for gname, gbody in raw_groups.items():
-            if isinstance(gbody, dict) and _opt_str(gbody.get("kind")):
-                groups[gname] = Group(gname, gbody["kind"], _opt_str(gbody.get("class")), _opt_str(gbody.get("label")))
+    groups = {
+        name: Group(name, body["kind"], _opt_str(body.get("class")), _opt_str(body.get("label")))
+        for name, body in (raw_groups.items() if isinstance(raw_groups, dict) else ())
+        if isinstance(body, dict) and _opt_str(body.get("kind"))
+    }
     il = doc.get("il")
     return Descriptor(
         il=il if isinstance(il, int) and not isinstance(il, bool) else 0,

@@ -6,7 +6,7 @@ consumer. `plan.py` says *what* entities a device becomes; the integration's pla
 turn each `EntitySpec` into a real entity.
 """
 
-from .model import Device, IlModel, Sink
+from .model import Device, IlModel, Sink, parse_aliases
 from .transport import CallLater, Message, Transport
 from .descriptor import Descriptor, DescriptorError, Prop, Requires, parse_descriptor
 from .plan import EntitySpec, plan_entities
@@ -28,6 +28,7 @@ __all__ = [
     "Topics",
     "decode_value",
     "encode_command",
+    "parse_aliases",
     "parse_descriptor",
     "plan_entities",
     "resolve_topics",

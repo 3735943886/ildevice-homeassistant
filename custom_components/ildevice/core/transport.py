@@ -6,8 +6,9 @@ producer in the same process (`memory.py`); the messages are the same (il-mqtt.m
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Protocol
+from typing import Any, Protocol
 
 
 @dataclass(frozen=True)

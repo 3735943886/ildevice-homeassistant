@@ -1,13 +1,13 @@
-"""Config flow: one instance, the IL prefix and how long to wait before calling a device offline."""
+"""Config flow: one entry per IL prefix, how long to wait before calling a device offline, and the discovery offers."""
 
 from __future__ import annotations
 
-import json
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 
 from .const import (
     CONF_ALIASES,
@@ -15,73 +15,68 @@ from .const import (
     CONF_DEVICES,
     CONF_IL_PREFIX,
     CONF_OFFLINE_GRACE,
-    DEFAULT_IL_PREFIX,
-    DEFAULT_OFFLINE_GRACE,
+    DEFAULT_OPTIONS,
     DOMAIN,
+    MAX_OFFLINE_GRACE,
+    with_defaults,
 )
-
+from .core import parse_aliases
 
 # Shown in the aliases field description. Passed as a placeholder because hassfest rejects
 # literal braces and angle brackets in strings.json.
 _ALIASES_EXAMPLE = '{"<model or *>": {"<entity key>": "<key an earlier integration used>"}}'
 
 
-def _schema(prefix: str, grace: int, aliases: str, auto_add: bool) -> vol.Schema:
+def _schema(options: Mapping[str, Any]) -> vol.Schema:
+    """The form, filled in with `options` (an entry's, or the defaults)."""
+    o = with_defaults(options)
     return vol.Schema(
         {
-            vol.Required(CONF_IL_PREFIX, default=prefix): str,
-            vol.Required(CONF_OFFLINE_GRACE, default=grace): vol.All(int, vol.Range(min=0, max=3600)),
-            vol.Optional(CONF_ALIASES, default=aliases): str,
-            vol.Required(CONF_AUTO_ADD, default=auto_add): bool,
+            vol.Required(CONF_IL_PREFIX, default=o[CONF_IL_PREFIX]): str,
+            vol.Required(CONF_OFFLINE_GRACE, default=o[CONF_OFFLINE_GRACE]): vol.All(
+                int, vol.Range(min=0, max=MAX_OFFLINE_GRACE)
+            ),
+            vol.Optional(CONF_ALIASES, default=o[CONF_ALIASES]): str,
+            vol.Required(CONF_AUTO_ADD, default=o[CONF_AUTO_ADD]): bool,
         }
     )
 
 
-def _check_aliases(text: str) -> bool:
-    """Aliases are JSON: `{"<model or *>": {"<key>": "<legacy key>"}}`."""
-    if not text.strip():
-        return True
-    try:
-        data = json.loads(text)
-    except ValueError:
-        return False
-    return isinstance(data, dict) and all(
-        isinstance(v, dict) and all(isinstance(a, str) and isinstance(b, str) for a, b in v.items())
-        for v in data.values()
-    )
-
-
-def _prefix_in_use(hass, prefix: str, ignore_entry_id: str | None = None) -> bool:
-    return any(
-        e.entry_id != ignore_entry_id and e.options.get(CONF_IL_PREFIX, DEFAULT_IL_PREFIX) == prefix
+def _validate(
+    hass: HomeAssistant, user_input: dict[str, Any], entry_id: str | None = None
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """The input with its prefix cleaned, and the errors in it. `entry_id` is the entry being edited."""
+    prefix = user_input[CONF_IL_PREFIX].strip().strip("/")
+    errors: dict[str, str] = {}
+    if not prefix:
+        errors[CONF_IL_PREFIX] = "bad_prefix"
+    elif any(
+        e.entry_id != entry_id and with_defaults(e.options)[CONF_IL_PREFIX] == prefix
         for e in hass.config_entries.async_entries(DOMAIN)
-    )
-
-
-def _clean_prefix(text: str) -> str:
-    return text.strip().strip("/")
+    ):
+        errors[CONF_IL_PREFIX] = "duplicate_prefix"
+    if parse_aliases(user_input.get(CONF_ALIASES, "")) is None:
+        errors[CONF_ALIASES] = "bad_aliases"
+    return {**user_input, CONF_IL_PREFIX: prefix}, errors
 
 
 class IlConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
+    _device: dict[str, Any]
+
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Each entry has its own topic prefix (`il/tuya`, `il/thinq`, ...); add the integration again for another."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            user_input = {**user_input, CONF_IL_PREFIX: _clean_prefix(user_input[CONF_IL_PREFIX])}
-            prefix = user_input[CONF_IL_PREFIX]
-            if not prefix:
-                errors[CONF_IL_PREFIX] = "bad_prefix"
-            elif _prefix_in_use(self.hass, prefix):
-                errors[CONF_IL_PREFIX] = "duplicate_prefix"
-            if not _check_aliases(user_input.get(CONF_ALIASES, "")):
-                errors[CONF_ALIASES] = "bad_aliases"
+            user_input, errors = _validate(self.hass, user_input)
             if not errors:
-                return self.async_create_entry(title=prefix, data={}, options={**user_input, CONF_DEVICES: []})
+                return self.async_create_entry(
+                    title=user_input[CONF_IL_PREFIX], data={}, options={**user_input, CONF_DEVICES: []}
+                )
         return self.async_show_form(
             step_id="user",
-            data_schema=_schema(DEFAULT_IL_PREFIX, DEFAULT_OFFLINE_GRACE, "", False),
+            data_schema=_schema(DEFAULT_OPTIONS),
             errors=errors,
             description_placeholders={"aliases_example": _ALIASES_EXAMPLE},
         )
@@ -120,31 +115,15 @@ class IlConfigFlow(ConfigFlow, domain=DOMAIN):
 class IlOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
+        entry = self.config_entry
         if user_input is not None:
-            user_input = {**user_input, CONF_IL_PREFIX: _clean_prefix(user_input[CONF_IL_PREFIX])}
-            prefix = user_input[CONF_IL_PREFIX]
-            if not prefix:
-                errors[CONF_IL_PREFIX] = "bad_prefix"
-            elif _prefix_in_use(self.hass, prefix, self.config_entry.entry_id):
-                errors[CONF_IL_PREFIX] = "duplicate_prefix"
-            elif _check_aliases(user_input.get(CONF_ALIASES, "")):
-                devices = set(self.config_entry.options.get(CONF_DEVICES, []))
-                hub = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
+            user_input, errors = _validate(self.hass, user_input, entry.entry_id)
+            if not errors:
+                devices = set(entry.options.get(CONF_DEVICES, []))
+                hub = self.hass.data.get(DOMAIN, {}).get(entry.entry_id)
                 if hub is not None and not user_input[CONF_AUTO_ADD]:
                     # Turning "add automatically" off keeps the devices it added.
                     devices |= set(hub.devices)
-                self.hass.config_entries.async_update_entry(self.config_entry, title=prefix)
+                self.hass.config_entries.async_update_entry(entry, title=user_input[CONF_IL_PREFIX])
                 return self.async_create_entry(data={**user_input, CONF_DEVICES: sorted(devices)})
-            else:
-                errors[CONF_ALIASES] = "bad_aliases"
-        o = self.config_entry.options
-        return self.async_show_form(
-            step_id="init",
-            data_schema=_schema(
-                o.get(CONF_IL_PREFIX, DEFAULT_IL_PREFIX),
-                o.get(CONF_OFFLINE_GRACE, DEFAULT_OFFLINE_GRACE),
-                o.get(CONF_ALIASES, ""),
-                o.get(CONF_AUTO_ADD, False),
-            ),
-            errors=errors,
-        )
+        return self.async_show_form(step_id="init", data_schema=_schema(entry.options), errors=errors)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
+from enum import IntFlag, StrEnum
 from typing import Any
 
 from homeassistant.components.alarm_control_panel import (
@@ -62,12 +64,17 @@ from homeassistant.util.percentage import (
 )
 
 from .const import DOMAIN
-from .core import EntitySpec, encode_command
+from .core import EntitySpec, Prop, encode_command
+from .core.plan import VALUE
 from .core.topics import set_topic
 from .hub import Device, IlHub, event_signal, signal
 
+# a light's brightness is a percentage in the IL and 0..255 in Home Assistant
+_HA_BRIGHTNESS = 255
+_IL_BRIGHTNESS = 100
 
-def _enum(cls, value):
+
+def _enum[E: StrEnum](cls: type[E], value: Any) -> E | None:
     """`value` as a member of the enum `cls`, or `None` when it is not one (a class the
     producer names that Home Assistant does not know is simply not applied)."""
     try:
@@ -76,9 +83,26 @@ def _enum(cls, value):
         return None
 
 
+def _is(value: Any, expected: Any) -> bool | None:
+    """Whether a reported `value` is `expected`; None while it is not reported."""
+    return None if value is None else value == expected
+
+
+def _on_off(value: bool | None) -> str | None:
+    return None if value is None else ("on" if value else "off")
+
+
+def _with_current(options: Iterable[str], value: Any) -> list[str]:
+    """The listed options, and the current value when the descriptor does not list it (il.md V-3)."""
+    options = list(options)
+    return options + [value] if value is not None and value not in options else options
+
+
 class IlEntity(Entity):
     _attr_should_poll = False
     _attr_has_entity_name = True
+    _device_classes: type[StrEnum] | None = None
+    """The platform's device class enum: the spec's device class is applied when it is one of its members."""
 
     def __init__(self, hub: IlHub, dev: Device, spec: EntitySpec) -> None:
         self.hub = hub
@@ -90,12 +114,27 @@ class IlEntity(Entity):
         if spec.icon:
             self._attr_icon = spec.icon
         self._attr_entity_category = _enum(EntityCategory, spec.entity_category)
+        if self._device_classes is not None:
+            self._attr_device_class = _enum(self._device_classes, spec.device_class)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, desc.id)},
-            name=desc.label or desc.model or desc.id,
+            name=desc.display_name,
             manufacturer=desc.vendor,
             model=desc.model,
         )
+
+    def _set_known(self, **attrs: Any) -> None:
+        """Set `_attr_<name>` for each attribute the descriptor gives (not None); the rest keep Home Assistant's."""
+        for name, value in attrs.items():
+            if value is not None:
+                setattr(self, f"_attr_{name}", value)
+
+    def _features[F: IntFlag](self, features: F, by_slot: Mapping[str, F]) -> F:
+        """`features`, and each feature whose slot the entity has."""
+        for slot, feature in by_slot.items():
+            if self._has(slot):
+                features |= feature
+        return features
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(
@@ -108,10 +147,22 @@ class IlEntity(Entity):
 
     # ---- reading ---------------------------------------------------------------------
 
+    def _has(self, slot: str) -> bool:
+        return slot in self.spec.slots
+
     def _prop(self, slot: str) -> str | None:
         return self.spec.slots.get(slot) or self.spec.shared.get(slot)
 
-    def _v(self, slot: str = "value") -> Any:
+    def _slot_prop(self, slot: str) -> Prop | None:
+        """The property of a slot the entity owns."""
+        name = self.spec.slots.get(slot)
+        return self.dev.desc.props[name] if name else None
+
+    def _options(self, slot: str) -> list[str]:
+        prop = self._slot_prop(slot)
+        return list(prop.options) if prop else []
+
+    def _v(self, slot: str = VALUE) -> Any:
         prop = self._prop(slot)
         return self.dev.values.get(prop) if prop else None
 
@@ -138,13 +189,30 @@ class IlEntity(Entity):
         )
 
 
+class _Toggle(IlEntity):
+    """An entity that is on or off by one binary slot."""
+
+    _toggle_slot = "on"
+
+    @property
+    def is_on(self) -> bool | None:
+        return self._v(self._toggle_slot)
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._write(self._toggle_slot, True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._write(self._toggle_slot, False)
+
+
 # ---- plain entities -------------------------------------------------------------------
 
 
 class IlSensor(IlEntity, SensorEntity):
+    _device_classes = SensorDeviceClass
+
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
-        self._attr_device_class = _enum(SensorDeviceClass, spec.device_class)
         self._attr_state_class = _enum(SensorStateClass, spec.state_class)
         self._attr_native_unit_of_measurement = spec.unit
         if self._attr_device_class == SensorDeviceClass.ENUM:
@@ -152,11 +220,9 @@ class IlSensor(IlEntity, SensorEntity):
 
     @property
     def options(self) -> list[str] | None:
-        # a value the descriptor does not list is shown as it is (il.md V-3)
-        value = self._v()
         if self._attr_device_class != SensorDeviceClass.ENUM:
             return None
-        return list(self.spec.options) + ([value] if value is not None and value not in self.spec.options else [])
+        return _with_current(self.spec.options, self._v())
 
     @property
     def native_value(self) -> Any:
@@ -167,68 +233,46 @@ class IlSensor(IlEntity, SensorEntity):
 
 
 class IlBinarySensor(IlEntity, BinarySensorEntity):
-    def __init__(self, hub, dev, spec) -> None:
-        super().__init__(hub, dev, spec)
-        self._attr_device_class = _enum(BinarySensorDeviceClass, spec.device_class)
+    _device_classes = BinarySensorDeviceClass
 
     @property
     def is_on(self) -> bool | None:
         return self._v()
 
 
-class IlSwitch(IlEntity, SwitchEntity):
-    def __init__(self, hub, dev, spec) -> None:
-        super().__init__(hub, dev, spec)
-        self._attr_device_class = _enum(SwitchDeviceClass, spec.device_class)
-
-    @property
-    def is_on(self) -> bool | None:
-        return self._v()
-
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        await self._write("value", True)
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        await self._write("value", False)
+class IlSwitch(_Toggle, SwitchEntity):
+    _device_classes = SwitchDeviceClass
+    _toggle_slot = VALUE
 
 
 class IlNumber(IlEntity, NumberEntity):
     _attr_mode = NumberMode.BOX
+    _device_classes = NumberDeviceClass
 
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
-        self._attr_device_class = _enum(NumberDeviceClass, spec.device_class)
         self._attr_native_unit_of_measurement = spec.unit
-        if spec.min is not None:
-            self._attr_native_min_value = spec.min
-        if spec.max is not None:
-            self._attr_native_max_value = spec.max
-        if spec.step is not None:
-            self._attr_native_step = spec.step
+        self._set_known(native_min_value=spec.min, native_max_value=spec.max, native_step=spec.step)
 
     @property
     def native_value(self) -> float | None:
         return self._v()
 
     async def async_set_native_value(self, value: float) -> None:
-        await self._write("value", value)
+        await self._write(VALUE, value)
 
 
 class IlSelect(IlEntity, SelectEntity):
-    def __init__(self, hub, dev, spec) -> None:
-        super().__init__(hub, dev, spec)
-
     @property
     def options(self) -> list[str]:
-        value = self._v()
-        return list(self.spec.options) + ([value] if value is not None and value not in self.spec.options else [])
+        return _with_current(self.spec.options, self._v())
 
     @property
     def current_option(self) -> str | None:
         return self._v()
 
     async def async_select_option(self, option: str) -> None:
-        await self._write("value", option)
+        await self._write(VALUE, option)
 
 
 class IlText(IlEntity, TextEntity):
@@ -237,23 +281,22 @@ class IlText(IlEntity, TextEntity):
         return self._v()
 
     async def async_set_value(self, value: str) -> None:
-        await self._write("value", value)
+        await self._write(VALUE, value)
 
 
 class IlButton(IlEntity, ButtonEntity):
-    def __init__(self, hub, dev, spec) -> None:
-        super().__init__(hub, dev, spec)
-        self._attr_device_class = _enum(ButtonDeviceClass, spec.device_class)
+    _device_classes = ButtonDeviceClass
 
     async def async_press(self) -> None:
-        await self._write("value")
+        await self._write(VALUE)
 
 
 class IlEvent(IlEntity, EventEntity):
+    _device_classes = EventDeviceClass
+
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
         self._attr_event_types = list(spec.options)
-        self._attr_device_class = _enum(EventDeviceClass, spec.device_class)
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -274,6 +317,7 @@ class IlEvent(IlEntity, EventEntity):
 
 _HVAC_MODES = {m.value for m in HVACMode}
 _HVAC_ACTIONS = {a.value: a for a in HVACAction}
+_SWING_MODES = ["on", "off"]
 
 
 class IlClimate(IlEntity, ClimateEntity):
@@ -281,36 +325,28 @@ class IlClimate(IlEntity, ClimateEntity):
 
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
-        props = dev.desc.props
-        modes = [o for o in props[spec.slots["mode"]].options if o in _HVAC_MODES] if "mode" in spec.slots else []
-        self._modes = modes
-        self._attr_hvac_modes = ([HVACMode.OFF] if "on" in spec.slots else []) + [HVACMode(m) for m in modes]
-        features = ClimateEntityFeature(0)
-        if "on" in spec.slots:
-            features |= ClimateEntityFeature.TURN_ON | ClimateEntityFeature.TURN_OFF
-        if "target_temperature" in spec.slots:
-            features |= ClimateEntityFeature.TARGET_TEMPERATURE
-        if "fan_speed" in spec.slots:
-            features |= ClimateEntityFeature.FAN_MODE
-            self._attr_fan_modes = list(props[spec.slots["fan_speed"]].options)
-        if "swing_vertical" in spec.slots:
-            features |= ClimateEntityFeature.SWING_MODE
-            self._attr_swing_modes = ["on", "off"]
-        if "swing_horizontal" in spec.slots:
-            features |= ClimateEntityFeature.SWING_HORIZONTAL_MODE
-            self._attr_swing_horizontal_modes = ["on", "off"]
-        self._attr_supported_features = features
-        if spec.min is not None:
-            self._attr_min_temp = spec.min
-        if spec.max is not None:
-            self._attr_max_temp = spec.max
+        self._modes = [o for o in self._options("mode") if o in _HVAC_MODES]
+        self._attr_hvac_modes = ([HVACMode.OFF] if self._has("on") else []) + [HVACMode(m) for m in self._modes]
+        self._attr_supported_features = self._features(ClimateEntityFeature(0), {
+            "on": ClimateEntityFeature.TURN_ON | ClimateEntityFeature.TURN_OFF,
+            "target_temperature": ClimateEntityFeature.TARGET_TEMPERATURE,
+            "fan_speed": ClimateEntityFeature.FAN_MODE,
+            "swing_vertical": ClimateEntityFeature.SWING_MODE,
+            "swing_horizontal": ClimateEntityFeature.SWING_HORIZONTAL_MODE,
+        })
+        if self._has("fan_speed"):
+            self._attr_fan_modes = self._options("fan_speed")
+        if self._has("swing_vertical"):
+            self._attr_swing_modes = _SWING_MODES
+        if self._has("swing_horizontal"):
+            self._attr_swing_horizontal_modes = _SWING_MODES
+        self._set_known(min_temp=spec.min, max_temp=spec.max, target_temperature_step=spec.step)
         if spec.step is not None:
-            self._attr_target_temperature_step = spec.step
-            self._attr_precision = spec.step if spec.step < 1 else 1
+            self._attr_precision = min(spec.step, 1)
 
     @property
     def hvac_mode(self) -> HVACMode | None:
-        if "on" in self.spec.slots and self._v("on") is False:
+        if self._has("on") and self._v("on") is False:
             return HVACMode.OFF
         mode = self._v("mode")
         return HVACMode(mode) if mode in self._modes else None
@@ -337,19 +373,17 @@ class IlClimate(IlEntity, ClimateEntity):
 
     @property
     def swing_mode(self) -> str | None:
-        value = self._v("swing_vertical")
-        return None if value is None else ("on" if value else "off")
+        return _on_off(self._v("swing_vertical"))
 
     @property
     def swing_horizontal_mode(self) -> str | None:
-        value = self._v("swing_horizontal")
-        return None if value is None else ("on" if value else "off")
+        return _on_off(self._v("swing_horizontal"))
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         if hvac_mode == HVACMode.OFF:
             await self._write("on", False)
             return
-        if "on" in self.spec.slots and self._v("on") is not True:
+        if self._has("on") and self._v("on") is not True:
             await self._write("on", True)
         await self._write("mode", hvac_mode.value)
 
@@ -375,21 +409,16 @@ class IlClimate(IlEntity, ClimateEntity):
         await self._write("swing_horizontal", swing_horizontal_mode == "on")
 
 
-class IlHumidifier(IlEntity, HumidifierEntity):
+class IlHumidifier(_Toggle, HumidifierEntity):
+    _device_classes = HumidifierDeviceClass
+
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
-        self._attr_device_class = _enum(HumidifierDeviceClass, spec.device_class) or HumidifierDeviceClass.HUMIDIFIER
-        if "mode" in spec.slots:
+        self._attr_device_class = self._attr_device_class or HumidifierDeviceClass.HUMIDIFIER
+        if self._has("mode"):
             self._attr_supported_features = HumidifierEntityFeature.MODES
-            self._attr_available_modes = list(dev.desc.props[spec.slots["mode"]].options)
-        if spec.min is not None:
-            self._attr_min_humidity = spec.min
-        if spec.max is not None:
-            self._attr_max_humidity = spec.max
-
-    @property
-    def is_on(self) -> bool | None:
-        return self._v("on")
+            self._attr_available_modes = self._options("mode")
+        self._set_known(min_humidity=spec.min, max_humidity=spec.max)
 
     @property
     def target_humidity(self) -> float | None:
@@ -403,12 +432,6 @@ class IlHumidifier(IlEntity, HumidifierEntity):
     def mode(self) -> str | None:
         return self._v("mode")
 
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        await self._write("on", True)
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        await self._write("on", False)
-
     async def async_set_humidity(self, humidity: int) -> None:
         await self._write("target_humidity", humidity)
 
@@ -416,29 +439,26 @@ class IlHumidifier(IlEntity, HumidifierEntity):
         await self._write("mode", mode)
 
 
-class IlFan(IlEntity, FanEntity):
+class IlFan(_Toggle, FanEntity):
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
-        props = dev.desc.props
-        features = FanEntityFeature.TURN_ON | FanEntityFeature.TURN_OFF
-        self._speeds: list[str] = []
-        if "speed" in spec.slots:                       # a percentage is preferred to named levels (il.md, `speed`)
-            features |= FanEntityFeature.SET_SPEED
-        elif "fan_speed" in spec.slots:
-            features |= FanEntityFeature.SET_SPEED
-            self._speeds = list(props[spec.slots["fan_speed"]].options)
-        if "oscillate" in spec.slots:
-            features |= FanEntityFeature.OSCILLATE
-        if "direction" in spec.slots:
-            features |= FanEntityFeature.DIRECTION
-        if "mode" in spec.slots:
-            features |= FanEntityFeature.PRESET_MODE
-            self._attr_preset_modes = list(props[spec.slots["mode"]].options)
+        # a percentage is preferred to named levels (il.md, `speed`)
+        self._percent = self._has("speed")
+        self._speeds = [] if self._percent else self._options("fan_speed")
+        features = self._features(FanEntityFeature.TURN_ON | FanEntityFeature.TURN_OFF, {
+            "speed": FanEntityFeature.SET_SPEED,
+            "fan_speed": FanEntityFeature.SET_SPEED,
+            "oscillate": FanEntityFeature.OSCILLATE,
+            "direction": FanEntityFeature.DIRECTION,
+            "mode": FanEntityFeature.PRESET_MODE,
+        })
+        if self._has("mode"):
+            self._attr_preset_modes = self._options("mode")
         self._attr_supported_features = features
 
     @property
     def speed_count(self) -> int:
-        return 100 if "speed" in self.spec.slots else len(self._speeds) or 1
+        return 100 if self._percent else len(self._speeds) or 1
 
     @property
     def oscillating(self) -> bool | None:
@@ -449,16 +469,12 @@ class IlFan(IlEntity, FanEntity):
         return self._v("direction")
 
     @property
-    def is_on(self) -> bool | None:
-        return self._v("on")
-
-    @property
     def percentage(self) -> int | None:
-        if "speed" in self.spec.slots:
+        if self._percent:
             value = self._v("speed")
             return None if value is None else round(value)
         value = self._v("fan_speed")
-        if not self._speeds or value not in self._speeds:
+        if value not in self._speeds:
             return None
         return ordered_list_item_to_percentage(self._speeds, value)
 
@@ -473,13 +489,10 @@ class IlFan(IlEntity, FanEntity):
         if percentage is not None:
             await self.async_set_percentage(percentage)
 
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        await self._write("on", False)
-
     async def async_set_percentage(self, percentage: int) -> None:
         if percentage == 0:
             await self._write("on", False)
-        elif "speed" in self.spec.slots:
+        elif self._percent:
             await self._write("speed", percentage)
         elif self._speeds:
             await self._write("fan_speed", percentage_to_ordered_list_item(self._speeds, percentage))
@@ -494,35 +507,28 @@ class IlFan(IlEntity, FanEntity):
         await self._write("direction", direction)
 
 
-class IlLight(IlEntity, LightEntity):
+class IlLight(_Toggle, LightEntity):
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
-        props = dev.desc.props
         modes: set[ColorMode] = set()
-        if "color" in spec.slots:
+        if self._has("color"):
             modes.add(ColorMode.HS)
-        if "color_temperature" in spec.slots:
+        if ct := self._slot_prop("color_temperature"):
             modes.add(ColorMode.COLOR_TEMP)
-            ct = props[spec.slots["color_temperature"]]
-            if ct.min is not None:
-                self._attr_min_color_temp_kelvin = int(ct.min)
-            if ct.max is not None:
-                self._attr_max_color_temp_kelvin = int(ct.max)
+            self._set_known(
+                min_color_temp_kelvin=None if ct.min is None else int(ct.min),
+                max_color_temp_kelvin=None if ct.max is None else int(ct.max),
+            )
         if not modes:
-            modes.add(ColorMode.BRIGHTNESS if "brightness" in spec.slots else ColorMode.ONOFF)
+            modes.add(ColorMode.BRIGHTNESS if self._has("brightness") else ColorMode.ONOFF)
         self._attr_supported_color_modes = modes
-        self._lowest = 1
-        if "brightness" in spec.slots and props[spec.slots["brightness"]].min:
-            self._lowest = max(1, round(props[spec.slots["brightness"]].min))
-
-    @property
-    def is_on(self) -> bool | None:
-        return self._v("on")
+        brightness = self._slot_prop("brightness")
+        self._lowest = max(1, round(brightness.min)) if brightness and brightness.min else 1
 
     @property
     def brightness(self) -> int | None:
         value = self._v("brightness")
-        return None if value is None else round(value * 255 / 100)
+        return None if value is None else round(value * _HA_BRIGHTNESS / _IL_BRIGHTNESS)
 
     @property
     def color_mode(self) -> ColorMode:
@@ -539,49 +545,46 @@ class IlLight(IlEntity, LightEntity):
     @property
     def hs_color(self) -> tuple[float, float] | None:
         text = self._v("color")
-        try:
-            rgb = tuple(int(text[i:i + 2], 16) for i in (1, 3, 5))
-        except (TypeError, ValueError):
+        if not isinstance(text, str) or len(text) != 7 or not text.startswith("#"):
             return None
-        if not text.startswith("#") or len(text) != 7:
+        try:
+            rgb = [int(text[i:i + 2], 16) for i in (1, 3, 5)]
+        except ValueError:
             return None
         return color_RGB_to_hs(*rgb)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self._write("on", True)
-        if ATTR_HS_COLOR in kwargs and "color" in self.spec.slots:
+        if ATTR_HS_COLOR in kwargs and self._has("color"):
             r, g, b = color_hs_to_RGB(*kwargs[ATTR_HS_COLOR])
             await self._write("color", f"#{r:02x}{g:02x}{b:02x}")
-        if ATTR_COLOR_TEMP_KELVIN in kwargs and "color_temperature" in self.spec.slots:
+        if ATTR_COLOR_TEMP_KELVIN in kwargs and self._has("color_temperature"):
             await self._write("color_temperature", kwargs[ATTR_COLOR_TEMP_KELVIN])
-        if ATTR_BRIGHTNESS in kwargs and "brightness" in self.spec.slots:
-            percent = round(kwargs[ATTR_BRIGHTNESS] * 100 / 255)
-            await self._write("brightness", max(self._lowest, min(100, percent)))
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        await self._write("on", False)
+        if ATTR_BRIGHTNESS in kwargs and self._has("brightness"):
+            percent = round(kwargs[ATTR_BRIGHTNESS] * _IL_BRIGHTNESS / _HA_BRIGHTNESS)
+            await self._write("brightness", max(self._lowest, min(_IL_BRIGHTNESS, percent)))
 
 
 class IlCover(IlEntity, CoverEntity):
+    _device_classes = CoverDeviceClass
+
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
-        props = dev.desc.props
-        self._attr_device_class = _enum(CoverDeviceClass, spec.device_class)
-        position = props[spec.slots["position"]] if "position" in spec.slots else None
-        features = CoverEntityFeature(0)
-        if "open" in spec.slots or (position and position.writable):
-            features |= CoverEntityFeature.OPEN
-        if "close" in spec.slots or (position and position.writable):
-            features |= CoverEntityFeature.CLOSE
-        if "stop" in spec.slots:
-            features |= CoverEntityFeature.STOP
-        if position and position.writable:
-            features |= CoverEntityFeature.SET_POSITION
-        if "tilt" in spec.slots and props[spec.slots["tilt"]].writable:
+        position = self._slot_prop("position")
+        tilt = self._slot_prop("tilt")
+        movable = bool(position and position.writable)
+        features = self._features(CoverEntityFeature(0), {
+            "open": CoverEntityFeature.OPEN,
+            "close": CoverEntityFeature.CLOSE,
+            "stop": CoverEntityFeature.STOP,
+        })
+        if movable:
+            features |= CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE | CoverEntityFeature.SET_POSITION
+        if tilt and tilt.writable:
             features |= CoverEntityFeature.SET_TILT_POSITION
         self._attr_supported_features = features
         # without a position or a state the cover never says where it is
-        self._attr_assumed_state = position is None and "cover_state" not in spec.slots
+        self._attr_assumed_state = position is None and not self._has("cover_state")
 
     @property
     def current_cover_position(self) -> int | None:
@@ -596,27 +599,24 @@ class IlCover(IlEntity, CoverEntity):
         position = self._v("position")
         if position is not None:
             return position == 0
-        state = self._v("cover_state")
-        return None if state is None else state == "closed"
+        return _is(self._v("cover_state"), "closed")
 
     @property
     def is_opening(self) -> bool | None:
-        state = self._v("cover_state")
-        return None if state is None else state == "opening"
+        return _is(self._v("cover_state"), "opening")
 
     @property
     def is_closing(self) -> bool | None:
-        state = self._v("cover_state")
-        return None if state is None else state == "closing"
+        return _is(self._v("cover_state"), "closing")
 
     async def async_open_cover(self, **kwargs: Any) -> None:
-        if "open" in self.spec.slots:
+        if self._has("open"):
             await self._write("open")
         else:
             await self._write("position", 100)
 
     async def async_close_cover(self, **kwargs: Any) -> None:
-        if "close" in self.spec.slots:
+        if self._has("close"):
             await self._write("close")
         else:
             await self._write("position", 0)
@@ -634,38 +634,29 @@ class IlCover(IlEntity, CoverEntity):
 class IlLock(IlEntity, LockEntity):
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
-        if "unlatch" in spec.slots:
+        if self._has("unlatch"):
             self._attr_supported_features = LockEntityFeature.OPEN
-
-    def _state(self) -> str | None:
-        return self._v("lock_state")
 
     @property
     def is_locked(self) -> bool | None:
-        state = self._state()
-        if state is not None:
-            return state == "locked"
-        return self._v("locked")
+        state = self._v("lock_state")
+        return self._v("locked") if state is None else state == "locked"
 
     @property
     def is_locking(self) -> bool | None:
-        state = self._state()
-        return None if state is None else state == "locking"
+        return _is(self._v("lock_state"), "locking")
 
     @property
     def is_unlocking(self) -> bool | None:
-        state = self._state()
-        return None if state is None else state == "unlocking"
+        return _is(self._v("lock_state"), "unlocking")
 
     @property
     def is_jammed(self) -> bool | None:
-        state = self._state()
-        return None if state is None else state == "jammed"
+        return _is(self._v("lock_state"), "jammed")
 
     @property
     def is_open(self) -> bool | None:
-        state = self._state()
-        return None if state is None else state == "open"
+        return _is(self._v("lock_state"), "open")
 
     async def async_lock(self, **kwargs: Any) -> None:
         await self._write("locked", True)
@@ -677,32 +668,18 @@ class IlLock(IlEntity, LockEntity):
         await self._write("unlatch")
 
 
-class IlSiren(IlEntity, SirenEntity):
+class IlSiren(_Toggle, SirenEntity):
     _attr_supported_features = SirenEntityFeature.TURN_ON | SirenEntityFeature.TURN_OFF
-
-    @property
-    def is_on(self) -> bool | None:
-        return self._v("on")
-
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        await self._write("on", True)
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        await self._write("on", False)
 
 
 class IlValve(IlEntity, ValveEntity):
     _attr_reports_position = False
     _attr_supported_features = ValveEntityFeature.OPEN | ValveEntityFeature.CLOSE
-
-    def __init__(self, hub, dev, spec) -> None:
-        super().__init__(hub, dev, spec)
-        self._attr_device_class = _enum(ValveDeviceClass, spec.device_class)
+    _device_classes = ValveDeviceClass
 
     @property
     def is_closed(self) -> bool | None:
-        opened = self._v("opened")
-        return None if opened is None else not opened
+        return _is(self._v("opened"), False)
 
     async def async_open_valve(self, **kwargs: Any) -> None:
         await self._write("opened", True)
@@ -711,24 +688,16 @@ class IlValve(IlEntity, ValveEntity):
         await self._write("opened", False)
 
 
-_ALARM_STATES = {s.value for s in AlarmControlPanelState}
-_ALARM_FEATURES = {
-    "arm_home": AlarmControlPanelEntityFeature.ARM_HOME,
-    "arm_away": AlarmControlPanelEntityFeature.ARM_AWAY,
-    "arm_night": AlarmControlPanelEntityFeature.ARM_NIGHT,
-}
-
-
 class IlAlarmControlPanel(IlEntity, AlarmControlPanelEntity):
     _attr_code_arm_required = False
 
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
-        features = AlarmControlPanelEntityFeature(0)
-        for role, feature in _ALARM_FEATURES.items():
-            if role in spec.slots:
-                features |= feature
-        self._attr_supported_features = features
+        self._attr_supported_features = self._features(AlarmControlPanelEntityFeature(0), {
+            "arm_home": AlarmControlPanelEntityFeature.ARM_HOME,
+            "arm_away": AlarmControlPanelEntityFeature.ARM_AWAY,
+            "arm_night": AlarmControlPanelEntityFeature.ARM_NIGHT,
+        })
 
     @property
     def alarm_state(self) -> AlarmControlPanelState | None:
@@ -750,19 +719,15 @@ class IlAlarmControlPanel(IlEntity, AlarmControlPanelEntity):
 class IlVacuum(IlEntity, StateVacuumEntity):
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
-        features = VacuumEntityFeature.STATE
-        for role, feature in (
-            ("start", VacuumEntityFeature.START),
-            ("pause", VacuumEntityFeature.PAUSE),
-            ("return_home", VacuumEntityFeature.RETURN_HOME),
-            ("locate", VacuumEntityFeature.LOCATE),
-        ):
-            if role in spec.slots:
-                features |= feature
-        if "fan_speed" in spec.slots:
-            features |= VacuumEntityFeature.FAN_SPEED
-            self._attr_fan_speed_list = list(dev.desc.props[spec.slots["fan_speed"]].options)
-        self._attr_supported_features = features
+        self._attr_supported_features = self._features(VacuumEntityFeature.STATE, {
+            "start": VacuumEntityFeature.START,
+            "pause": VacuumEntityFeature.PAUSE,
+            "return_home": VacuumEntityFeature.RETURN_HOME,
+            "locate": VacuumEntityFeature.LOCATE,
+            "fan_speed": VacuumEntityFeature.FAN_SPEED,
+        })
+        if self._has("fan_speed"):
+            self._attr_fan_speed_list = self._options("fan_speed")
 
     @property
     def activity(self) -> VacuumActivity | None:
@@ -788,23 +753,23 @@ class IlVacuum(IlEntity, StateVacuumEntity):
         await self._write("fan_speed", fan_speed)
 
 
-ENTITY_CLASSES = {
+ENTITY_CLASSES: dict[str, type[IlEntity]] = {
     "alarm_control_panel": IlAlarmControlPanel,
-    "vacuum": IlVacuum,
-    "sensor": IlSensor,
     "binary_sensor": IlBinarySensor,
-    "switch": IlSwitch,
+    "button": IlButton,
+    "climate": IlClimate,
+    "cover": IlCover,
+    "event": IlEvent,
+    "fan": IlFan,
+    "humidifier": IlHumidifier,
+    "light": IlLight,
+    "lock": IlLock,
     "number": IlNumber,
     "select": IlSelect,
-    "text": IlText,
-    "button": IlButton,
-    "event": IlEvent,
-    "climate": IlClimate,
-    "humidifier": IlHumidifier,
-    "fan": IlFan,
-    "light": IlLight,
-    "cover": IlCover,
-    "lock": IlLock,
+    "sensor": IlSensor,
     "siren": IlSiren,
+    "switch": IlSwitch,
+    "text": IlText,
+    "vacuum": IlVacuum,
     "valve": IlValve,
 }

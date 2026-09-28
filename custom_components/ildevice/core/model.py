@@ -8,12 +8,21 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Mapping, Protocol
+from typing import Protocol
 
-from .descriptor import Descriptor, DescriptorError, parse_descriptor
+from .descriptor import Descriptor, Prop, parse_descriptor
 from .plan import EntitySpec, availability_prop, plan_entities
-from .topics import Topics, resolve_topics, state_topic
+from .topics import (
+    DEFAULT_IL_PREFIX,
+    Topics,
+    descriptor_filter,
+    last_level,
+    presence_filter,
+    resolve_topics,
+    state_topic,
+)
 from .transport import CallLater, Message, Transport, Unsubscribe, text
 from .values import decode_value
 
@@ -27,15 +36,49 @@ class Device:
     topics: Topics
     specs: list[EntitySpec]
     values: dict[str, object] = field(default_factory=dict)
-    online: bool = True
     entities: list = field(default_factory=list)
     """Whatever the sink built for the device's specs."""
     unsubs: list[Unsubscribe] = field(default_factory=list)
     offline_timer: Unsubscribe | None = None
+    availability: str | None = field(init=False)
+    """The property with the `available` role, if the device has one."""
+    online: bool = field(init=False)
+    """False from the start when the device reports its availability, until it says it is up."""
 
-    @property
-    def availability(self) -> str | None:
-        return availability_prop(self.desc)
+    def __post_init__(self) -> None:
+        self.availability = availability_prop(self.desc)
+        self.online = self.availability is None
+
+    def cancel_offline_timer(self) -> None:
+        if self.offline_timer:
+            self.offline_timer()
+            self.offline_timer = None
+
+    def release(self) -> None:
+        """Drop the device's subscriptions and its pending offline timer."""
+        for unsub in self.unsubs:
+            unsub()
+        self.unsubs.clear()
+        self.cancel_offline_timer()
+
+
+Aliases = Mapping[str, Mapping[str, str]]
+"""Model (or `*` for any) -> entity key -> the key an earlier integration used."""
+
+
+def parse_aliases(text: str) -> dict[str, dict[str, str]] | None:
+    """Aliases from their JSON text (empty for none), or None when it is not `{"<model>": {"<key>": "<key>"}}`."""
+    if not text.strip():
+        return {}
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return None
+    valid = isinstance(data, dict) and all(
+        isinstance(keys, dict) and all(isinstance(a, str) and isinstance(b, str) for a, b in keys.items())
+        for keys in data.values()
+    )
+    return data if valid else None
 
 
 class Sink(Protocol):
@@ -72,9 +115,9 @@ class IlModel:
         transport: Transport,
         sink: Sink,
         call_later: CallLater,
-        il_prefix: str = "il",
+        il_prefix: str = DEFAULT_IL_PREFIX,
         offline_grace: float = 0,
-        aliases: Mapping[str, Mapping[str, str]] | None = None,
+        aliases: Aliases | None = None,
         auto_add: bool = True,
         allowed: set[str] | None = None,
     ) -> None:
@@ -96,25 +139,17 @@ class IlModel:
 
     async def start(self) -> None:
         self._unsubs = [
-            await self.transport.subscribe(f"{self.il_prefix}/+", self._on_descriptor),
-            await self.transport.subscribe(f"{self.il_prefix}/_producer/+", self._on_presence),
+            await self.transport.subscribe(descriptor_filter(self.il_prefix), self._on_descriptor),
+            await self.transport.subscribe(presence_filter(self.il_prefix), self._on_presence),
         ]
 
     async def stop(self) -> None:
         for unsub in self._unsubs:
             unsub()
         self._unsubs = []
-        for dev in list(self.devices.values()):
-            self.release(dev)
+        for dev in self.devices.values():
+            dev.release()
         self.devices.clear()
-
-    def release(self, dev: Device) -> None:
-        for unsub in dev.unsubs:
-            unsub()
-        dev.unsubs.clear()
-        if dev.offline_timer:
-            dev.offline_timer()
-            dev.offline_timer = None
 
     # ---- presence ----------------------------------------------------------------------
 
@@ -123,7 +158,7 @@ class IlModel:
         return dev.desc.source not in self.offline_sources
 
     def _on_presence(self, msg: Message) -> None:
-        source = msg.topic.rsplit("/", 1)[-1]
+        source = last_level(msg.topic)
         payload = text(msg.payload).strip().lower()
         if payload == "offline":
             self.offline_sources.add(source)
@@ -138,7 +173,7 @@ class IlModel:
     # ---- descriptors -------------------------------------------------------------------
 
     async def _on_descriptor(self, msg: Message) -> None:
-        device_id = msg.topic.rsplit("/", 1)[-1]
+        device_id = last_level(msg.topic)
         async with self._lock:
             payload = text(msg.payload).strip()
             if not payload:
@@ -147,7 +182,7 @@ class IlModel:
             try:
                 doc = json.loads(payload)
                 desc = parse_descriptor(doc)
-            except (ValueError, DescriptorError) as err:
+            except ValueError as err:  # not JSON, or a DescriptorError
                 _LOGGER.warning("ignoring the descriptor on %s: %s", msg.topic, err)
                 return
             if desc.id != device_id:
@@ -163,30 +198,25 @@ class IlModel:
             await self._setup_device(desc, doc, known)
 
     def _aliases_for(self, desc: Descriptor) -> dict[str, str]:
-        merged = dict(self.aliases.get("*", {}))
-        if desc.model:
-            merged.update(self.aliases.get(desc.model, {}))
-        return merged
+        """The aliases for any model (`*`), overridden by the device's model's own."""
+        return {**self.aliases.get("*", {}), **(self.aliases.get(desc.model, {}) if desc.model else {})}
 
     async def _setup_device(self, desc: Descriptor, doc: dict, known: Device | None) -> None:
         if known is not None:
             await self.sink.replacing(known)
             known.entities = []
-            self.release(known)
+            known.release()
         try:
             specs = plan_entities(desc, self._aliases_for(desc))
         except ValueError as err:
             _LOGGER.error("cannot plan %s: %s", desc.id, err)
             return
         dev = Device(desc=desc, doc=doc, topics=resolve_topics(desc, self.il_prefix), specs=specs)
-        dev.online = dev.availability is None
         self.devices[desc.id] = dev
-        for prop in desc.props:
-            if desc.props[prop].type == "trigger":
-                continue
-            dev.unsubs.append(
-                await self.transport.subscribe(state_topic(desc, dev.topics, prop), self._state_callback(dev, prop))
-            )
+        for prop in desc.props.values():
+            if prop.type != "trigger":  # a trigger has no state
+                topic = state_topic(desc, dev.topics, prop.name)
+                dev.unsubs.append(await self.transport.subscribe(topic, self._state_callback(dev, prop)))
         dev.unsubs.append(await self.transport.subscribe(dev.topics.reject, self._reject_callback(dev)))
         await self.sink.ready(dev, known)
 
@@ -198,34 +228,34 @@ class IlModel:
             return
         await self.sink.removed(dev)
         dev.entities = []
-        self.release(dev)
+        dev.release()
 
     # ---- values ------------------------------------------------------------------------
 
-    def _state_callback(self, dev: Device, prop: str):
+    def _state_callback(self, dev: Device, prop: Prop) -> Callable[[Message], None]:
+        name = prop.name
+
         def on_state(msg: Message) -> None:
-            if dev.desc.props[prop].type == "event":
+            if prop.type == "event":
                 # every message is one occurrence; a retained one is an old occurrence the broker
                 # replays on (re)subscribe, not a new one
                 kind = text(msg.payload).strip()
                 if kind and not msg.retain:
-                    self.sink.event(dev, prop, kind)
+                    self.sink.event(dev, name, kind)
                 return
-            value = decode_value(dev.desc.props[prop], msg.payload)
+            value = decode_value(prop, msg.payload)
             if value is None:
-                dev.values.pop(prop, None)
+                dev.values.pop(name, None)
             else:
-                dev.values[prop] = value
-            if prop == dev.availability:
+                dev.values[name] = value
+            if name == dev.availability:
                 self._availability(dev, value is True)
             self.sink.values_changed(dev)
 
         return on_state
 
     def _availability(self, dev: Device, online: bool) -> None:
-        if dev.offline_timer:
-            dev.offline_timer()
-            dev.offline_timer = None
+        dev.cancel_offline_timer()
         if online or self.offline_grace <= 0:
             dev.online = online
             return
@@ -237,7 +267,7 @@ class IlModel:
 
         dev.offline_timer = self.call_later(self.offline_grace, go_offline)
 
-    def _reject_callback(self, dev: Device):
+    def _reject_callback(self, dev: Device) -> Callable[[Message], None]:
         def on_reject(msg: Message) -> None:
             try:
                 body = json.loads(msg.payload)
@@ -245,7 +275,7 @@ class IlModel:
                 body = {"reason": text(msg.payload)}
             if not isinstance(body, dict):
                 body = {"reason": str(body)}
-            data = {"device_id": dev.desc.id, "prop": body.get("prop"), "code": body.get("code"), "reason": body.get("reason")}
+            data = {"device_id": dev.desc.id} | {k: body.get(k) for k in ("prop", "code", "reason")}
             _LOGGER.warning("%s refused a command: %s", dev.desc.id, data)
             self.sink.rejected(dev, data)
 

@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import json
+import math
 from typing import Any
 
 from .descriptor import Prop
+from .transport import text as payload_text
+
+_TRUE = ("true", "on", "1")
+_FALSE = ("false", "off", "0")
 
 
 def decode_value(prop: Prop, payload: str | bytes | None) -> Any:
@@ -13,22 +18,23 @@ def decode_value(prop: Prop, payload: str | bytes | None) -> Any:
     payload) or does not fit the type. Never raises."""
     if payload is None:
         return None
-    text = payload.decode("utf-8", "replace") if isinstance(payload, (bytes, bytearray)) else payload
-    if text.strip() == "":
+    text = payload_text(payload)
+    stripped = text.strip()
+    if not stripped:
         return None
     if prop.type == "binary":
-        lowered = text.strip().lower()
-        if lowered in ("true", "on", "1"):
+        lowered = stripped.lower()
+        if lowered in _TRUE:
             return True
-        if lowered in ("false", "off", "0"):
+        if lowered in _FALSE:
             return False
         return None
     if prop.type == "number":
         try:
-            number = float(json.loads(text.strip()))
+            number = float(json.loads(stripped))
         except (ValueError, TypeError):
             return None
-        if number != number or number in (float("inf"), float("-inf")):
+        if not math.isfinite(number):
             return None
         return int(number) if number.is_integer() else number
     if prop.type in ("select", "text"):

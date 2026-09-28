@@ -798,3 +798,14 @@ async def test_a_null_descriptor_removes_the_device_from_the_registry(hass, mqtt
     await hass.async_block_till_done()
     assert device_ids(hass) == set()
     assert not er.async_get(hass).async_get_entity_id("humidifier", DOMAIN, "dhum1-humidifier")
+
+
+def test_every_platform_has_an_entity_class_and_a_module():
+    import importlib
+
+    from custom_components.ildevice.const import PLATFORMS
+    from custom_components.ildevice.entity import ENTITY_CLASSES
+
+    assert sorted(ENTITY_CLASSES) == sorted(PLATFORMS)
+    for platform in PLATFORMS:
+        assert importlib.import_module(f"custom_components.ildevice.{platform}").async_setup_entry

@@ -3,8 +3,8 @@ What the messages mean is `core.model.IlModel`'s business; this class is its `Si
 
 from __future__ import annotations
 
-import logging
-from typing import Callable
+from collections import defaultdict
+from collections.abc import Callable, Iterable
 
 from homeassistant.config_entries import SOURCE_INTEGRATION_DISCOVERY
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
@@ -15,11 +15,10 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later
 
 from .const import DOMAIN, EVENT_COMMAND_REJECTED
-from .core import Descriptor, Device, IlModel
+from .core import Descriptor, Device, EntitySpec, IlModel
+from .core.model import Aliases
 from .core.transport import Transport
 from .mqtt_transport import HaMqttTransport
-
-_LOGGER = logging.getLogger(__name__)
 
 __all__ = ["Device", "IlHub", "event_signal", "signal"]
 
@@ -39,7 +38,7 @@ class IlHub:
         hass: HomeAssistant,
         il_prefix: str,
         offline_grace: int,
-        aliases: dict[str, dict[str, str]],
+        aliases: Aliases,
         auto_add: bool = True,
         allowed: set[str] | None = None,
         transport: Transport | None = None,
@@ -62,7 +61,7 @@ class IlHub:
             allowed=allowed,
         )
         self._adders: dict[str, Callable] = {}
-        self._pending: dict[str, list] = {}
+        self._pending: defaultdict[str, list] = defaultdict(list)
 
     def _call_later(self, delay: float, fn: Callable[[], None]) -> CALLBACK_TYPE:
         @callback
@@ -102,7 +101,7 @@ class IlHub:
     def _add(self, platform: str, entity) -> None:
         adder = self._adders.get(platform)
         if adder is None:
-            self._pending.setdefault(platform, []).append(entity)
+            self._pending[platform].append(entity)
         else:
             adder([entity])
 
@@ -114,7 +113,7 @@ class IlHub:
             self.hass,
             DOMAIN,
             context={"source": SOURCE_INTEGRATION_DISCOVERY},
-            data={"entry_id": self.entry_id, "device_id": desc.id, "label": desc.label or desc.model or desc.id, "model": desc.model or ""},
+            data={"entry_id": self.entry_id, "device_id": desc.id, "label": desc.display_name, "model": desc.model or ""},
         )
 
     def withdrawn(self, device_id: str) -> None:
@@ -130,7 +129,8 @@ class IlHub:
 
         # a spec that is gone from the new plan leaves the registry too
         if known is not None:
-            self._forget_unique_ids({s.unique_id for s in known.specs} - {s.unique_id for s in dev.specs})
+            kept = {s.unique_id for s in dev.specs}
+            self._forget_entities(s for s in known.specs if s.unique_id not in kept)
         for spec in dev.specs:
             entity = ENTITY_CLASSES[spec.platform](self, dev, spec)
             dev.entities.append(entity)
@@ -138,7 +138,7 @@ class IlHub:
 
     async def removed(self, dev: Device) -> None:
         await self._drop_entities(dev)
-        self._forget_unique_ids({s.unique_id for s in dev.specs})
+        self._forget_entities(dev.specs)
         self._forget_device(dev.desc.id)
 
     def values_changed(self, dev: Device) -> None:
@@ -165,8 +165,8 @@ class IlHub:
             if (self.platform, device_id) in device.identifiers:
                 registry.async_remove_device(device.id)
 
-    def _forget_unique_ids(self, unique_ids: set[str]) -> None:
+    def _forget_entities(self, specs: Iterable[EntitySpec]) -> None:
         registry = er.async_get(self.hass)
-        for entry in list(registry.entities.values()):
-            if entry.platform == self.platform and entry.unique_id in unique_ids:
-                registry.async_remove(entry.entity_id)
+        for spec in specs:
+            if entity_id := registry.async_get_entity_id(spec.platform, self.platform, spec.unique_id):
+                registry.async_remove(entity_id)

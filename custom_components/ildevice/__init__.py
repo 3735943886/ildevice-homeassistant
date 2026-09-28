@@ -2,25 +2,19 @@
 (rusthinq, rustuya, ...) gets its devices and entities, with no code per model.
 
 Importing this package needs no Home Assistant (`ildevice.core` is usable on its own); Home Assistant is imported
-when the integration is set up. A host that embeds the consumer calls `attach.attach_hub`.
+when the integration is set up. A host that embeds the consumer calls `attach.build_hub`.
 """
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
 
-from .const import (
-    CONF_DEVICES,
-    DOMAIN,
-    PLATFORMS,
-)
+from .const import CONF_DEVICES, DOMAIN, PLATFORMS
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
-
-_LOGGER = logging.getLogger(__name__)
+    from homeassistant.helpers.device_registry import DeviceEntry
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -34,9 +28,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device) -> bool:
+async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device: DeviceEntry) -> bool:
     """Deleting a device in the UI forgets that the user added it; it is offered again when it next appears."""
-    ids = {ident[1] for ident in device.identifiers if ident[0] == DOMAIN}
+    ids = {ident for domain, ident in device.identifiers if domain == DOMAIN}
     devices = [d for d in entry.options.get(CONF_DEVICES, []) if d not in ids]
     hass.config_entries.async_update_entry(entry, options={**entry.options, CONF_DEVICES: devices})
     return True
