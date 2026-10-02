@@ -132,6 +132,8 @@ class IlModel:
         self.devices: dict[str, Device] = {}
         self.offline_sources: set[str] = set()
         self._asked: set[str] = set()
+        self._offered: dict[str, tuple[Descriptor, dict]] = {}
+        """The descriptors of devices not added (yet), so adding one needs no new replay."""
         self._unsubs: list[Unsubscribe] = []
         self._lock = asyncio.Lock()
 
@@ -177,6 +179,7 @@ class IlModel:
         async with self._lock:
             payload = text(msg.payload).strip()
             if not payload:
+                self._offered.pop(device_id, None)
                 await self._remove_device(device_id)
                 return
             try:
@@ -188,6 +191,7 @@ class IlModel:
             if desc.id != device_id:
                 _LOGGER.warning("the descriptor on %s carries the id %s", msg.topic, desc.id)
             if not self.auto_add and desc.id not in self.allowed:
+                self._offered[desc.id] = (desc, doc)
                 if desc.id not in self._asked:
                     self._asked.add(desc.id)
                     self.sink.discovered(desc)
@@ -196,6 +200,30 @@ class IlModel:
             if known is not None and known.doc == doc:
                 return
             await self._setup_device(desc, doc, known)
+
+    async def set_allowed(self, allowed: set[str]) -> None:
+        """The user added or deleted devices: set up the added ones and take down the deleted ones (offered again),
+        leaving every other device as it is. Reloading the whole consumer instead takes every entity away and back,
+        which a state-following automation reads as a change of each (an event entity coming back looks pressed)."""
+        async with self._lock:
+            added, dropped = allowed - self.allowed, self.allowed - allowed
+            self.allowed = set(allowed)
+            if self.auto_add:
+                return
+            for device_id in dropped:
+                dev = self.devices.pop(device_id, None)
+                if dev is None:
+                    continue
+                await self.sink.removed(dev)
+                dev.entities = []
+                dev.release()
+                self._offered[device_id] = (dev.desc, dev.doc)
+                self._asked.add(device_id)
+                self.sink.discovered(dev.desc)
+            for device_id in added:
+                offered = self._offered.pop(device_id, None)
+                if offered is not None and device_id not in self.devices:
+                    await self._setup_device(*offered, None)
 
     def _aliases_for(self, desc: Descriptor) -> dict[str, str]:
         """The aliases for any model (`*`), overridden by the device's model's own."""

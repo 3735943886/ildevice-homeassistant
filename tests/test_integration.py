@@ -386,10 +386,7 @@ async def test_adding_the_offered_device_creates_it(hass, mqtt_mock):
     assert result["reason"] == "device_added"
     await hass.async_block_till_done()
     assert entry.options["devices"] == ["dhum1"]
-
-    announce(hass, doc)  # the retained descriptor arrives again as the entry reloads
-    await hass.async_block_till_done()
-    assert device_ids(hass) == {"dhum1"}
+    assert device_ids(hass) == {"dhum1"}  # from the descriptor it was offered with: no reload, no replay needed
     entity_id(hass, "humidifier", "dhum1-humidifier")
     assert offers(hass) == []
 
@@ -421,6 +418,41 @@ async def test_deleting_a_device_makes_it_a_new_offer(hass, mqtt_mock):
 
     assert await async_remove_config_entry_device(hass, entry, device)
     assert entry.options["devices"] == []
+
+
+async def test_adding_or_deleting_a_device_leaves_the_other_devices_entities_alone(hass, mqtt_mock):
+    """Reloading the entry for it took every entity away and back: a state-following automation saw each change, and
+    an event entity coming back with its restored last event looked pressed."""
+    from custom_components.ildevice import async_remove_config_entry_device
+
+    entry = await setup(hass, auto_add=False, devices=["dhum1"])
+    announce(hass, descriptor("DHUM_056905_WW", "dhum1"))
+    value(hass, "dhum1", "available", "true")
+    value(hass, "dhum1", "power", "true")
+    await hass.async_block_till_done()
+    kept = entity_id(hass, "humidifier", "dhum1-humidifier")
+    before = hass.states.get(kept)
+    assert before.state == STATE_ON
+    changes = []
+    hass.bus.async_listen("state_changed", lambda e: changes.append(e.data["entity_id"]))
+
+    announce(hass, descriptor("DHUM_056905_WW", "dhum2"))
+    await hass.async_block_till_done()
+    (flow,) = offers(hass)
+    await hass.config_entries.flow.async_configure(flow["flow_id"], {})
+    await hass.async_block_till_done()
+    assert device_ids(hass) == {"dhum1", "dhum2"}
+    entity_id(hass, "humidifier", "dhum2-humidifier")
+
+    (device,) = [d for d in dr.async_get(hass).devices if (DOMAIN, "dhum2") in d.identifiers]
+    assert await async_remove_config_entry_device(hass, entry, device)
+    await hass.async_block_till_done()
+    assert entry.options["devices"] == ["dhum1"]
+    assert [f["context"]["unique_id"] for f in offers(hass)] == ["dhum2"]       # offered again
+
+    assert hass.states.get(kept) == before
+    dhum1 = {e.entity_id for e in er.async_get(hass).entities.values() if e.unique_id.startswith("dhum1-")}
+    assert kept in dhum1 and not dhum1 & set(changes)
 
 
 async def test_turning_the_question_off_and_on_keeps_the_devices_that_were_there(hass, mqtt_mock):

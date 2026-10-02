@@ -49,6 +49,8 @@ class IlHub:
         self.entry_id = entry_id
         self.transport: Transport = transport or HaMqttTransport(hass)
         self.platform = platform
+        self.options: dict = {}
+        """The entry options this hub runs with (set by the integration, to tell what a change needs)."""
         """The integration domain the entities are registered under (`ildevice`, or a host that embeds this)."""
         self.model = IlModel(
             self.transport,
@@ -88,6 +90,9 @@ class IlHub:
 
     async def async_stop(self) -> None:
         await self.model.stop()
+
+    async def async_set_allowed(self, allowed: set[str]) -> None:
+        await self.model.set_allowed(allowed)
 
     # ---- platforms ---------------------------------------------------------------------
 

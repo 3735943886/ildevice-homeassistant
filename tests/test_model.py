@@ -110,6 +110,25 @@ async def test_a_device_that_was_not_added_is_offered_once():
     assert sink.calls[-1] == ("ready", "d1", False)
 
 
+async def test_adding_and_deleting_a_device_leaves_the_others_alone():
+    bus, sink, _, model = await make(auto_add=False, allowed={"d2"})
+    await bus.publish("il/d2", json.dumps({**DESC, "id": "d2"}), 1, True)
+    await publish_descriptor(bus)
+    assert sink.calls == [("ready", "d2", False), ("discovered", "d1")]
+
+    await model.set_allowed({"d1", "d2"})              # set up from the descriptor it was offered with
+    assert sink.calls[2:] == [("ready", "d1", False)] and set(model.devices) == {"d1", "d2"}
+
+    await model.set_allowed({"d2"})                    # taken down and offered again
+    assert sink.calls[3:] == [("removed", "d1"), ("discovered", "d1")] and set(model.devices) == {"d2"}
+    await bus.publish("il/d1/power", "true")
+    assert sink.calls[-1] == ("discovered", "d1")      # its subscriptions are gone
+
+    await model.set_allowed({"d1", "d2"})
+    assert sink.calls[5:] == [("ready", "d1", False)]
+    assert not any(c[1] == "d2" for c in sink.calls[1:] if c[0] != "values")
+
+
 async def test_the_grace_period_delays_offline_and_a_return_cancels_it():
     bus, sink, timers, model = await make(offline_grace=30)
     await publish_descriptor(bus)
