@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "il-ha"
+name = "ildevice-homeassistant"
 version = "0.0.4"
 description = "Home Assistant integration that turns IL descriptors into entities"
 requires-python = ">=3.14"
