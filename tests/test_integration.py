@@ -820,6 +820,26 @@ async def test_an_offer_is_added_to_the_hub_that_made_it(hass, mqtt_mock):
     assert thinq.options["devices"] == ["dhum1"]
 
 
+async def test_a_state_class_the_device_class_forbids_is_dropped(hass, mqtt_mock):
+    await setup(hass)
+    doc = descriptor("1WPU4CIGCR__2", "wp1")
+    doc["props"]["hot_water_last_dispensed"] = {
+        "type": "number", "class": "volume", "series": "gauge", "unit": "mL", "label": "Hot water last dispensed",
+    }
+    announce(hass, doc)
+    await hass.async_block_till_done()
+    value(hass, "wp1", "available", "true")
+    value(hass, "wp1", "hot_water_last_dispensed", "120")
+    value(hass, "wp1", "cold_water_today", "500")
+    await hass.async_block_till_done()
+
+    last = hass.states.get(entity_id(hass, "sensor", "wp1-hot_water_last_dispensed"))
+    assert last.state == "120" and last.attributes["device_class"] == "volume"
+    assert "state_class" not in last.attributes, "a volume is never a measurement"
+    today = hass.states.get(entity_id(hass, "sensor", "wp1-cold_water_today"))
+    assert today.attributes["state_class"] == "total_increasing"
+
+
 async def test_a_null_descriptor_removes_the_device_from_the_registry(hass, mqtt_mock):
     await setup(hass)
     announce(hass, descriptor("DHUM_056905_WW", "dhum1"))

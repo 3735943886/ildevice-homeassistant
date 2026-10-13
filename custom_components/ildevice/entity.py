@@ -47,7 +47,12 @@ from homeassistant.components.siren import SirenEntity, SirenEntityFeature
 from homeassistant.components.valve import ValveDeviceClass, ValveEntity, ValveEntityFeature
 from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
 from homeassistant.components.select import SelectEntity
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.components.sensor import (
+    DEVICE_CLASS_STATE_CLASSES,
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.components.text import TextEntity
 from homeassistant.const import ATTR_TEMPERATURE, EntityCategory, UnitOfTemperature
@@ -213,7 +218,13 @@ class IlSensor(IlEntity, SensorEntity):
 
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
-        self._attr_state_class = _enum(SensorStateClass, spec.state_class)
+        state_class = _enum(SensorStateClass, spec.state_class)
+        # a state class the device class forbids (a `volume` gauge is not a `measurement`) is
+        # dropped, so the entity keeps its device class and unit
+        allowed = DEVICE_CLASS_STATE_CLASSES.get(self._attr_device_class)
+        if state_class and allowed is not None and state_class not in allowed:
+            state_class = None
+        self._attr_state_class = state_class
         self._attr_native_unit_of_measurement = spec.unit
         if self._attr_device_class == SensorDeviceClass.ENUM:
             self._attr_options = list(spec.options)
