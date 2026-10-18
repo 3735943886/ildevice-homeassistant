@@ -49,9 +49,9 @@ class IlHub:
         self.entry_id = entry_id
         self.transport: Transport = transport or HaMqttTransport(hass)
         self.platform = platform
+        """The integration domain the entities are registered under (`ildevice`, or a host that embeds this)."""
         self.options: dict = {}
         """The entry options this hub runs with (set by the integration, to tell what a change needs)."""
-        """The integration domain the entities are registered under (`ildevice`, or a host that embeds this)."""
         self.model = IlModel(
             self.transport,
             self,

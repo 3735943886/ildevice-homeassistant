@@ -143,6 +143,9 @@ MQTT's filters and retained messages) and its own domain. It forwards the platfo
 `const.PLATFORMS` to its config entry and hands each one's `async_add_entities` to
 `hub.register_platform`.
 
+`InProcessTransport` keeps retained values but does not keep a publish history by default.
+Tests that inspect `transport.published` should construct it with `record_published=True`.
+
 ## Tests
 
 ```

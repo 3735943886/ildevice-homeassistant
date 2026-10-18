@@ -55,7 +55,8 @@ class Device:
             self.offline_timer = None
 
     def release(self) -> None:
-        """Drop the device's subscriptions and its pending offline timer."""
+        """Drop the device's entities (the sink has taken them down), subscriptions and pending offline timer."""
+        self.entities = []
         for unsub in self.unsubs:
             unsub()
         self.unsubs.clear()
@@ -190,6 +191,7 @@ class IlModel:
                 return
             if desc.id != device_id:
                 _LOGGER.warning("the descriptor on %s carries the id %s", msg.topic, desc.id)
+                return
             if not self.auto_add and desc.id not in self.allowed:
                 self._offered[desc.id] = (desc, doc)
                 if desc.id not in self._asked:
@@ -215,7 +217,6 @@ class IlModel:
                 if dev is None:
                     continue
                 await self.sink.removed(dev)
-                dev.entities = []
                 dev.release()
                 self._offered[device_id] = (dev.desc, dev.doc)
                 self._asked.add(device_id)
@@ -230,22 +231,27 @@ class IlModel:
         return {**self.aliases.get("*", {}), **(self.aliases.get(desc.model, {}) if desc.model else {})}
 
     async def _setup_device(self, desc: Descriptor, doc: dict, known: Device | None) -> None:
-        if known is not None:
-            await self.sink.replacing(known)
-            known.entities = []
-            known.release()
         try:
             specs = plan_entities(desc, self._aliases_for(desc))
         except ValueError as err:
             _LOGGER.error("cannot plan %s: %s", desc.id, err)
             return
         dev = Device(desc=desc, doc=doc, topics=resolve_topics(desc, self.il_prefix), specs=specs)
+        # Keep the current device alive until the new plan and subscriptions are ready.
+        try:
+            for prop in desc.props.values():
+                if prop.type != "trigger":  # a trigger has no state
+                    topic = state_topic(desc, dev.topics, prop.name)
+                    dev.unsubs.append(await self.transport.subscribe(topic, self._state_callback(dev, prop)))
+            dev.unsubs.append(await self.transport.subscribe(dev.topics.reject, self._reject_callback(dev)))
+            if known is not None:
+                await self.sink.replacing(known)
+        except BaseException:
+            dev.release()
+            raise
+        if known is not None:
+            known.release()
         self.devices[desc.id] = dev
-        for prop in desc.props.values():
-            if prop.type != "trigger":  # a trigger has no state
-                topic = state_topic(desc, dev.topics, prop.name)
-                dev.unsubs.append(await self.transport.subscribe(topic, self._state_callback(dev, prop)))
-        dev.unsubs.append(await self.transport.subscribe(dev.topics.reject, self._reject_callback(dev)))
         await self.sink.ready(dev, known)
 
     async def _remove_device(self, device_id: str) -> None:
@@ -255,7 +261,6 @@ class IlModel:
         if dev is None:
             return
         await self.sink.removed(dev)
-        dev.entities = []
         dev.release()
 
     # ---- values ------------------------------------------------------------------------
@@ -283,9 +288,11 @@ class IlModel:
         return on_state
 
     def _availability(self, dev: Device, online: bool) -> None:
-        dev.cancel_offline_timer()
         if online or self.offline_grace <= 0:
+            dev.cancel_offline_timer()
             dev.online = online
+            return
+        if not dev.online or dev.offline_timer is not None:
             return
 
         def go_offline() -> None:

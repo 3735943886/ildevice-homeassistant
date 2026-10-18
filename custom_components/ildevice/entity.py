@@ -11,9 +11,10 @@ from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntityFeature,
     AlarmControlPanelState,
 )
-from homeassistant.components.vacuum import StateVacuumEntity, VacuumActivity, VacuumEntityFeature
-from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
-from homeassistant.components.event import EventDeviceClass, EventEntity
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
+)
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
 from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
@@ -29,6 +30,7 @@ from homeassistant.components.cover import (
     CoverEntity,
     CoverEntityFeature,
 )
+from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.components.humidifier import (
     HumidifierDeviceClass,
@@ -43,8 +45,6 @@ from homeassistant.components.light import (
     LightEntity,
 )
 from homeassistant.components.lock import LockEntity, LockEntityFeature
-from homeassistant.components.siren import SirenEntity, SirenEntityFeature
-from homeassistant.components.valve import ValveDeviceClass, ValveEntity, ValveEntityFeature
 from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
 from homeassistant.components.select import SelectEntity
 from homeassistant.components.sensor import (
@@ -53,22 +53,32 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.components.siren import SirenEntity, SirenEntityFeature
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.components.text import TextEntity
+from homeassistant.components.vacuum import (
+    StateVacuumEntity,
+    VacuumActivity,
+    VacuumEntityFeature,
+)
+from homeassistant.components.valve import (
+    ValveDeviceClass,
+    ValveEntity,
+    ValveEntityFeature,
+)
 from homeassistant.const import ATTR_TEMPERATURE, EntityCategory, UnitOfTemperature
 from homeassistant.core import callback
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.util import dt as dt_util
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
+from homeassistant.util import dt as dt_util
 from homeassistant.util.color import color_hs_to_RGB, color_RGB_to_hs
 from homeassistant.util.percentage import (
     ordered_list_item_to_percentage,
     percentage_to_ordered_list_item,
 )
 
-from .const import DOMAIN
 from .core import EntitySpec, Prop, encode_command
 from .core.plan import VALUE
 from .core.topics import set_topic
@@ -122,7 +132,7 @@ class IlEntity(Entity):
         if self._device_classes is not None:
             self._attr_device_class = _enum(self._device_classes, spec.device_class)
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, desc.id)},
+            identifiers={(hub.platform, desc.id)},
             name=desc.display_name,
             manufacturer=desc.vendor,
             model=desc.model,

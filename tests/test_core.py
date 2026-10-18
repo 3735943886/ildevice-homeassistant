@@ -1,8 +1,8 @@
 """The Home Assistant free core, against the real descriptors the rusthinq drivers publish."""
 
 import pytest
+from conftest import load
 
-from conftest import FIXTURES, load
 from custom_components.ildevice.core import (
     DescriptorError,
     decode_value,
@@ -11,8 +11,15 @@ from custom_components.ildevice.core import (
     plan_entities,
     resolve_topics,
 )
+from custom_components.ildevice.core.descriptor import Prop
 from custom_components.ildevice.core.plan import availability_prop
 from custom_components.ildevice.core.topics import set_topic, state_topic
+
+
+@pytest.mark.parametrize("payload", ["true", "false", '"12"', "null", "[]", "{}", "NaN", "Infinity",
+                                         "1e999", "9" * 400])
+def test_number_states_reject_non_numbers_and_overflow(payload):
+    assert decode_value(Prop("n", "number"), payload) is None
 
 
 def plan(model, aliases=None):
@@ -77,16 +84,16 @@ def test_a_higher_il_version_is_still_read():
 def test_topics_come_from_the_descriptors_x_mqtt():
     desc = parse_descriptor(load("rusthinq/DHUM_056905_WW.json"))
     topics = resolve_topics(desc)
-    assert topics.state_topic("power") == "rusthinq/harness/power"
-    assert topics.set_topic("power") == "rusthinq/harness/power/set"
+    assert state_topic(desc, topics, "power") == "rusthinq/harness/power"
+    assert set_topic(desc, topics, "power") == "rusthinq/harness/power/set"
     assert topics.reject == "rusthinq/harness/reject"
 
 
 def test_topics_default_to_the_il_prefix():
     desc = parse_descriptor({"id": "d1", "props": {"p": {"type": "binary"}}})
     topics = resolve_topics(desc, "il")
-    assert topics.state_topic("p") == "il/d1/p"
-    assert topics.set_topic("p") == "il/d1/p/set"
+    assert state_topic(desc, topics, "p") == "il/d1/p"
+    assert set_topic(desc, topics, "p") == "il/d1/p/set"
     assert topics.reject == "il/d1/reject"
 
 

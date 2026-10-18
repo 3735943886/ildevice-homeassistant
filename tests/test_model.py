@@ -100,6 +100,54 @@ async def test_an_empty_descriptor_removes_the_device():
     assert sink.calls[-1] == ("removed", "d1")
 
 
+async def test_a_conflicting_replacement_keeps_the_current_device_working():
+    bus, sink, _, model = await make()
+    await publish_descriptor(bus)
+    original = model.devices["d1"]
+    conflicting = {**DESC, "props": {**DESC["props"], "light": {"type": "text"}}}
+    await publish_descriptor(bus, conflicting)
+    assert model.devices["d1"] is original
+    assert sink.calls == [("ready", "d1", False)]
+    await bus.publish("il/d1/power", "true")
+    assert original.values["power"] is True
+    # Replaying the original must not leave a device with dead subscriptions.
+    await publish_descriptor(bus)
+    await bus.publish("il/d1/power", "false")
+    assert original.values["power"] is False
+
+
+async def test_a_failed_subscription_cleans_up_the_replacement_and_preserves_the_current_device():
+    bus, sink, _, model = await make()
+    await publish_descriptor(bus)
+    original = model.devices["d1"]
+    subscriptions = list(bus._subs)
+    subscribe = bus.subscribe
+
+    async def fail(topic, callback, qos=1):
+        if topic == "il/d1/reject":
+            raise OSError("subscription failed")
+        return await subscribe(topic, callback, qos)
+
+    bus.subscribe = fail
+    with pytest.raises(OSError, match="subscription failed"):
+        await model._setup_device(model.devices["d1"].desc, {**DESC, "label": "New"}, original)
+    assert bus._subs == subscriptions
+    assert model.devices["d1"] is original
+    assert sink.calls == [("ready", "d1", False)]
+    await bus.publish("il/d1/power", "true")
+    assert original.values["power"] is True
+
+
+@pytest.mark.parametrize("auto_add", [True, False])
+async def test_a_descriptor_with_a_different_topic_id_is_not_created_or_offered(auto_add):
+    bus, sink, _, model = await make(auto_add=auto_add)
+    await bus.publish("il/other", json.dumps(DESC), 1, True)
+    await bus.settle()
+    assert not model.devices and not sink.calls
+    await model.set_allowed({"d1"})
+    assert not model.devices
+
+
 async def test_a_device_that_was_not_added_is_offered_once():
     bus, sink, _, model = await make(auto_add=False, allowed=set())
     await publish_descriptor(bus)
@@ -155,8 +203,39 @@ async def test_producer_presence_and_rejections_reach_the_sink():
     assert sink.calls[-1] == ("rejected", {"device_id": "d1", "prop": "power", "code": "read_only", "reason": "no"})
 
 
+async def test_repeated_offline_reports_keep_the_first_deadline_and_recovery_starts_a_new_one():
+    bus, _, timers, model = await make(offline_grace=30)
+    await publish_descriptor(bus)
+    assert not timers.pending  # Initial unavailability does not need a delay.
+    await bus.publish("il/d1/available", "true")
+    await bus.publish("il/d1/available", "false")
+    deadline = timers.pending[0]
+    await bus.publish("il/d1/available", "false")
+    assert timers.pending == [deadline] and timers.pending[0] is deadline
+    timers.pending.remove(deadline)
+    deadline[1]()
+    assert model.devices["d1"].online is False
+    await bus.publish("il/d1/available", "false")
+    assert not timers.pending
+    await bus.publish("il/d1/available", "true")
+    await bus.publish("il/d1/available", "false")
+    assert len(timers.pending) == 1 and timers.pending[0] is not deadline
+
+
+@pytest.mark.parametrize("record", [False, True])
+async def test_publish_history_is_opt_in_without_changing_delivery_or_retained_values(record):
+    bus = InProcessTransport(record_published=True) if record else InProcessTransport()
+    received = []
+    await bus.subscribe("state", received.append)
+    for i in range(100):
+        await bus.publish("state", str(i), qos=1, retain=True)
+    assert len(received) == 100
+    assert bus.retained["state"].payload == "99"
+    assert len(bus.published) == (100 if record else 0)
+
+
 async def test_stop_releases_every_subscription():
-    bus, sink, _, model = await make()
+    bus, _sink, _, model = await make()
     await publish_descriptor(bus)
     await model.stop()
     assert bus._subs == [] and model.devices == {}

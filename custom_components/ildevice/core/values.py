@@ -31,8 +31,11 @@ def decode_value(prop: Prop, payload: str | bytes | None) -> Any:
         return None
     if prop.type == "number":
         try:
-            number = float(json.loads(stripped))
-        except (ValueError, TypeError):
+            number = json.loads(stripped)
+            if isinstance(number, bool) or not isinstance(number, int | float):
+                return None
+            number = float(number)
+        except (ValueError, TypeError, OverflowError):
             return None
         if not math.isfinite(number):
             return None

@@ -4,6 +4,7 @@ import json
 from datetime import timedelta
 
 import pytest
+from conftest import load
 from homeassistant.config_entries import SOURCE_IGNORE
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE
 from homeassistant.helpers import device_registry as dr
@@ -15,8 +16,40 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
-from conftest import load
 from custom_components.ildevice.const import DOMAIN, EVENT_COMMAND_REJECTED
+
+
+async def test_platform_registry_matches_the_forwarded_platforms():
+    from custom_components.ildevice.const import PLATFORMS
+    from custom_components.ildevice.entity import ENTITY_CLASSES
+
+    assert set(PLATFORMS) == set(ENTITY_CLASSES)
+
+
+async def test_embedded_devices_use_the_host_domain_for_creation_and_removal(hass):
+    from custom_components.ildevice.core import (
+        parse_descriptor,
+        plan_entities,
+        resolve_topics,
+    )
+    from custom_components.ildevice.core.memory import InProcessTransport
+    from custom_components.ildevice.core.model import Device
+    from custom_components.ildevice.entity import IlSensor
+    from custom_components.ildevice.hub import IlHub
+
+    entry = MockConfigEntry(domain="embedded_host")
+    entry.add_to_hass(hass)
+    hub = IlHub(hass, "il", 0, {}, transport=InProcessTransport(),
+                platform="embedded_host", entry_id=entry.entry_id)
+    desc = parse_descriptor({"id": "embedded1", "props": {"reading": {"type": "number"}}})
+    specs = plan_entities(desc)
+    dev = Device(desc, {}, resolve_topics(desc), specs)
+    entity = IlSensor(hub, dev, specs[0])
+    assert entity.device_info["identifiers"] == {("embedded_host", "embedded1")}
+    registry = dr.async_get(hass)
+    device = registry.async_get_or_create(config_entry_id=entry.entry_id, **entity.device_info)
+    await hub.removed(dev)
+    assert registry.async_get(device.id) is None
 
 
 @pytest.fixture(autouse=True)

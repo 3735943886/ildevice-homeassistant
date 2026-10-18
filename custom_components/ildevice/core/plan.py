@@ -41,8 +41,6 @@ class EntitySpec:
     step: float | None = None
     requires: Requires | None = None
     """A condition on another property for the whole entity to accept a command."""
-    slot_requires: Mapping[str, Requires] = field(default_factory=dict)
-    """Slot -> the condition on that one property, for a composite whose controls differ."""
     icon: str | None = None
     """`mdi:...` for a plain entity that has no device class of its own to give it one (`icons.py`)."""
 
@@ -143,14 +141,14 @@ def _generic(prop: Prop, unique_id: str) -> EntitySpec:
 
 
 def _plain(prop: Prop, unique_id: str) -> EntitySpec:
-    common = dict(
-        key=prop.name,
-        unique_id=unique_id,
-        name=_name(prop),
-        slots={VALUE: prop.name},
-        entity_category=_category(prop),
-        requires=prop.requires,
-    )
+    common = {
+        "key": prop.name,
+        "unique_id": unique_id,
+        "name": _name(prop),
+        "slots": {VALUE: prop.name},
+        "entity_category": _category(prop),
+        "requires": prop.requires,
+    }
     match prop.type, prop.rw:
         case "binary", rw:
             return EntitySpec(platform="switch" if rw else "binary_sensor", device_class=prop.klass, **common)
@@ -179,7 +177,7 @@ def _plain(prop: Prop, unique_id: str) -> EntitySpec:
 
 
 def _range(prop: Prop) -> dict:
-    return dict(min=prop.min, max=prop.max, step=prop.step)
+    return {"min": prop.min, "max": prop.max, "step": prop.step}
 
 
 def _by_role(props: Iterable[Prop]) -> dict[str, Prop]:
@@ -236,7 +234,6 @@ def _composite(
         entity_category=next((c for p in slots.values() if (c := _category(props[p]))), None),
         slots=slots,
         shared={r: by_role[r].name for r in rule.reads if r in by_role},
-        slot_requires={r: by_role[r].requires for r in slots if by_role[r].requires is not None},
         **_composite_extra(rule.platform, klass, by_role),
     )
 

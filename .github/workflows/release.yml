@@ -17,11 +17,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: 3735943886/ildevice
+          path: .ildevice-spec
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
       - run: pip install .[test]
       - run: python -m pytest
+        env:
+          ILDEVICE: ${{ github.workspace }}/.ildevice-spec
 
   release:
     needs: test

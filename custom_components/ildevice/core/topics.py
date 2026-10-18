@@ -26,17 +26,11 @@ def last_level(topic: str) -> str:
 
 @dataclass(frozen=True)
 class Topics:
-    """Topic templates for one device, `{id}`-resolved; `{prop}` is left to `state`/`set`."""
+    """Topic templates for one device, `{id}`-resolved; `{prop}` is left to `state_topic`/`set_topic`."""
 
     state: str
     set: str
     reject: str
-
-    def state_topic(self, prop: str) -> str:
-        return self.state.replace("{prop}", prop)
-
-    def set_topic(self, prop: str) -> str:
-        return self.set.replace("{prop}", prop)
 
 
 def resolve_topics(desc: Descriptor, il_prefix: str = DEFAULT_IL_PREFIX) -> Topics:

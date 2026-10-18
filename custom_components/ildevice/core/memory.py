@@ -24,11 +24,12 @@ def matches(filter_: str, topic: str) -> bool:
 
 
 class InProcessTransport:
-    def __init__(self) -> None:
+    def __init__(self, *, record_published: bool = False) -> None:
         self._subs: list[tuple[str, Callback]] = []
         self.retained: dict[str, Message] = {}
         self.published: list[tuple[str, str | bytes, int, bool]] = []
-        """Every publish, in order (for a test to look at)."""
+        """Publish history, populated only when record_published=True (for tests)."""
+        self._record_published = record_published
         self._tasks: set[asyncio.Task] = set()
 
     async def subscribe(self, topic: str, callback: Callback, qos: int = 1) -> Unsubscribe:
@@ -44,7 +45,8 @@ class InProcessTransport:
         return unsubscribe
 
     async def publish(self, topic: str, payload: str | bytes, qos: int = 0, retain: bool = False) -> None:
-        self.published.append((topic, payload, qos, retain))
+        if self._record_published:
+            self.published.append((topic, payload, qos, retain))
         if retain:
             if payload in ("", b""):
                 self.retained.pop(topic, None)
