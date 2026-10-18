@@ -18,6 +18,8 @@ from .topics import (
     DEFAULT_IL_PREFIX,
     Topics,
     descriptor_filter,
+    device_descriptor_filter,
+    descriptor_id,
     last_level,
     presence_filter,
     resolve_topics,
@@ -143,6 +145,7 @@ class IlModel:
     async def start(self) -> None:
         self._unsubs = [
             await self.transport.subscribe(descriptor_filter(self.il_prefix), self._on_descriptor),
+            await self.transport.subscribe(device_descriptor_filter(self.il_prefix), self._on_descriptor),
             await self.transport.subscribe(presence_filter(self.il_prefix), self._on_presence),
         ]
 
@@ -176,7 +179,9 @@ class IlModel:
     # ---- descriptors -------------------------------------------------------------------
 
     async def _on_descriptor(self, msg: Message) -> None:
-        device_id = last_level(msg.topic)
+        device_id = descriptor_id(msg.topic, self.il_prefix)
+        if device_id is None:
+            return
         async with self._lock:
             payload = text(msg.payload).strip()
             if not payload:

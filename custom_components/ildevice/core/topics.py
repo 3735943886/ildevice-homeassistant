@@ -14,6 +14,22 @@ def descriptor_filter(il_prefix: str) -> str:
     return f"{il_prefix}/+"
 
 
+def device_descriptor_filter(il_prefix: str) -> str:
+    """Descriptors alongside device states: `<prefix>/<id>/descriptor`."""
+    return f"{il_prefix}/+/descriptor"
+
+
+def descriptor_id(topic: str, il_prefix: str) -> str | None:
+    """Extract the id only from one of the two supported descriptor paths."""
+    base = f"{il_prefix}/"
+    if not topic.startswith(base):
+        return None
+    parts = topic[len(base):].split("/")
+    if len(parts) == 1 or (len(parts) == 2 and parts[1] == "descriptor"):
+        return parts[0] or None
+    return None
+
+
 def presence_filter(il_prefix: str) -> str:
     """Producer presence: `<il_prefix>/_producer/<source>`."""
     return f"{il_prefix}/_producer/+"

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ildevice-homeassistant"
-version = "0.0.6"
+version = "0.0.7"
 description = "Home Assistant integration that turns IL descriptors into entities"
 requires-python = ">=3.14"
 license = "MIT"

@@ -479,3 +479,16 @@ def test_a_fan_takes_speed_oscillate_and_direction_as_its_own_roles():
     fan, *rest = plan_entities(desc)
     assert fan.platform == "fan" and dict(fan.slots) == {"on": "power", "speed": "pct", "oscillate": "swing", "direction": "dir"}
     assert [s.key for s in rest] == ["wrong"]                    # a role with the wrong type is no role (O-5)
+
+
+@pytest.mark.parametrize(("topic", "expected"), [
+    ("custom/thinq/d1", "d1"),
+    ("custom/thinq/d1/descriptor", "d1"),
+    ("custom/thinq/d1/power", None),
+    ("custom/thinq/d1/extra/descriptor", None),
+    ("other/d1/descriptor", None),
+])
+def test_descriptor_ids_are_extracted_from_supported_paths_only(topic, expected):
+    from custom_components.ildevice.core.topics import descriptor_id
+
+    assert descriptor_id(topic, "custom/thinq") == expected

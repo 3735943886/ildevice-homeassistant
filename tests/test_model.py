@@ -245,3 +245,25 @@ def test_the_core_imports_without_home_assistant():
     code = ("import sys; sys.modules['homeassistant'] = None; "
             "import custom_components.ildevice.core as c; assert c.IlModel and c.plan_entities")
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+@pytest.mark.parametrize("prefix", ["rusthinq", "custom/thinq"])
+async def test_device_descriptor_path_replays_offers_and_routes_commands(prefix):
+    bus, sink, timers = InProcessTransport(), Sink(), Timers()
+    doc = {**DESC, "x-mqtt": {"state": f"{prefix}/{{id}}/{{prop}}",
+                             "set": f"{prefix}/{{id}}/{{prop}}/set"}}
+    topic = f"{prefix}/d1/descriptor"
+    await bus.publish(topic, json.dumps(doc), 1, True)
+    model = IlModel(bus, sink, timers, il_prefix=prefix, auto_add=False)
+    await model.start()
+    await bus.settle()
+    assert sink.calls == [("discovered", "d1")]
+    await model.set_allowed({"d1"})
+    assert "d1" in model.devices
+    await bus.publish(f"{prefix}/d1/power", "true", 1, True)
+    assert model.devices["d1"].values["power"] is True
+    assert model.devices["d1"].topics.set == f"{prefix}/d1/{{prop}}/set"
+    await bus.publish(topic, "", 1, True)
+    await bus.settle()
+    assert "d1" not in model.devices
+    await model.stop()

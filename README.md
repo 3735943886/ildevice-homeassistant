@@ -21,6 +21,11 @@ it again for each topic prefix you use (see [Several hubs](#several-hubs)).
 | Legacy entity ids | JSON aliases that keep the unique ids of an earlier integration, see below. |
 | Add discovered devices automatically | Skip the add / ignore question, see below. |
 
+For rusthinq scripts that publish `<prefix>/<id>/descriptor`, set the integration
+Topic prefix to the host's `[drivers] topic_prefix` (for example `rusthinq`).
+Existing `<prefix>/<id>` descriptors remain supported. Property and command
+paths come from the descriptor's `x-mqtt` block when provided.
+
 ## Several hubs
 
 Add the integration once per topic prefix, such as `il/tuya` or `il/thinq`: each entry is its own hub
@@ -35,7 +40,7 @@ should be unique across entries, as they are the device identifier and the base 
 with a light, a button and a valve on its own topics: what the producer publishes, the entities
 it becomes, and the MQTT messages for commands.
 
-- It subscribes to `<il_prefix>/+` (the retained descriptors) and `<il_prefix>/_producer/+`
+- It subscribes to `<il_prefix>/+` and `<il_prefix>/+/descriptor` (retained descriptors), and `<il_prefix>/_producer/+`
   (producer presence). For each device it subscribes to the value topics and the `reject` topic the
   descriptor points at (`x-mqtt`, see `il-mqtt.md` in the ildevice repository).
 - A device's **kind** and the **roles** of its properties decide the composite entities. A group

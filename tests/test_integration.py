@@ -894,3 +894,28 @@ def test_every_platform_has_an_entity_class_and_a_module():
     assert sorted(ENTITY_CLASSES) == sorted(PLATFORMS)
     for platform in PLATFORMS:
         assert importlib.import_module(f"custom_components.ildevice.{platform}").async_setup_entry
+
+
+async def test_rusthinq_device_descriptor_is_offered_added_and_removed(hass, mqtt_mock):
+    entry = await setup(hass, il_prefix="rusthinq", auto_add=False)
+    doc = descriptor("DHUM_056905_WW", "dhum1")
+    topic = "rusthinq/dhum1/descriptor"
+    async_fire_mqtt_message(hass, topic, json.dumps(doc))
+    await hass.async_block_till_done()
+    (flow,) = offers(hass)
+    assert flow["context"]["unique_id"] == "dhum1"
+    result = await hass.config_entries.flow.async_configure(flow["flow_id"], {})
+    assert result["reason"] == "device_added"
+    await hass.async_block_till_done()
+    assert entry.options["devices"] == ["dhum1"]
+    assert device_ids(hass) == {"dhum1"}
+    humidifier = entity_id(hass, "humidifier", "dhum1-humidifier")
+    value(hass, "dhum1", "available", "true")
+    value(hass, "dhum1", "power", "true")
+    await hass.async_block_till_done()
+    assert hass.states.get(humidifier).state == STATE_ON
+    await hass.services.async_call("humidifier", "turn_off", {"entity_id": humidifier}, blocking=True)
+    assert_published(mqtt_mock, "rusthinq/dhum1/power/set", "false")
+    async_fire_mqtt_message(hass, topic, "")
+    await hass.async_block_till_done()
+    assert device_ids(hass) == set()
