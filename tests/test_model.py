@@ -267,3 +267,37 @@ async def test_device_descriptor_path_replays_offers_and_routes_commands(prefix)
     await bus.settle()
     assert "d1" not in model.devices
     await model.stop()
+
+
+async def test_descriptor_removal_drops_cached_property_and_its_subscription():
+    """M-13: deleting a property must not leave a value or an active listener."""
+    bus, _, _, model = await make()
+    await publish_descriptor(bus)
+    await bus.publish("il/d1/power", "true", 1, True)
+    old = model.devices["d1"]
+    await bus.publish("il/d1/power", "", 1, True)
+    props = {name: body for name, body in DESC["props"].items() if name != "power"}
+    await publish_descriptor(bus, {**DESC, "props": props})
+    dev = model.devices["d1"]
+    assert "power" not in dev.desc.props
+    assert "power" not in dev.values
+    assert old.unsubs == []
+    await bus.publish("il/d1/power", "true", 1, True)
+    assert "power" not in dev.values
+    await model.stop()
+
+
+async def test_redefined_property_does_not_replay_its_old_retained_value():
+    """M-13: clear the old state, publish a new definition, then its current value."""
+    bus, _, _, model = await make()
+    await publish_descriptor(bus)
+    await bus.publish("il/d1/power", "true", 1, True)
+    await bus.publish("il/d1/power", "", 1, True)
+    props = {**DESC["props"], "power": {"type": "number", "unit": "W"}}
+    await publish_descriptor(bus, {**DESC, "props": props})
+    dev = model.devices["d1"]
+    assert "power" not in dev.values
+    assert any(spec.platform == "sensor" for spec in dev.specs)
+    await bus.publish("il/d1/power", "125", 1, True)
+    assert dev.values["power"] == 125
+    await model.stop()

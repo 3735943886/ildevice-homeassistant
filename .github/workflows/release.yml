@@ -20,6 +20,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: 3735943886/ildevice
+          ref: bc51a9ef8ac46770f67a02722c5c92907d1019ee # ildevice v0.1.0
           path: .ildevice-spec
       - uses: actions/setup-python@v7
         with:
@@ -47,7 +48,7 @@ jobs:
       - name: Zip the integration
         run: |
           cd custom_components
-          zip -r "$GITHUB_WORKSPACE/ildevice.zip" ildevice -x "ildevice/__pycache__/*"
+          zip -r "$GITHUB_WORKSPACE/ildevice.zip" ildevice -x "*/__pycache__/*" "*.pyc"
 
       - uses: softprops/action-gh-release@v3
         with:

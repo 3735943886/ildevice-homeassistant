@@ -73,11 +73,16 @@ it becomes, and the MQTT messages for commands.
   `reason`).
 - Availability is the device's `available` property and the producer's presence
   (`<il_prefix>/_producer/<source>`; `offline` makes all of its devices unavailable).
-  `offline_grace` keeps a short outage from showing.
-- An empty (null) descriptor withdraws the device: its entities, registry entries and value
+  `offline_grace` delays unavailability reported by the device; producer-offline presence takes effect immediately.
+- An empty MQTT descriptor payload withdraws the device: its entities, registry entries and value
   subscriptions go, and it is created again if the descriptor is published again. A changed
   descriptor re-plans its entities.
-- A property with an unknown role, type or field is still usable as a plain entity.
+- Unknown fields are ignored. An unknown role falls back to a plain entity; a property with an unknown type is skipped.
+
+Commands have no correlated success acknowledgement or completion deadline. State updates
+show observed state; a successful trigger or unchanged write can be silent. A rejection
+reports failure, and silence does not confirm success. Retained replay restores state per
+topic and is not an atomic snapshot across the device's properties.
 
 ## Adding devices
 
@@ -151,10 +156,19 @@ MQTT's filters and retained messages) and its own domain. It forwards the platfo
 `InProcessTransport` keeps retained values but does not keep a publish history by default.
 Tests that inspect `transport.published` should construct it with `record_published=True`.
 
+## Specification baseline
+
+The MQTT consumer is tested against the conformance vectors of ildevice specification **v0.1.0** (draft `il: 0`),
+commit [bc51a9e](https://github.com/3735943886/ildevice/tree/bc51a9ef8ac46770f67a02722c5c92907d1019ee).
+CI pins that revision because draft changes can break compatibility without changing `il`.
+Local vector tests use the checkout selected by `ILDEVICE` (or `../ildevice`), so they can
+also check proposed specification changes before the baseline is advanced.
+
 ## Tests
 
 ```
-python -m venv .venv && .venv/bin/pip install pytest-homeassistant-custom-component
+python3.14 -m venv .venv
+.venv/bin/python -m pip install -e ".[test]"
 .venv/bin/python -m pytest
 ```
 
