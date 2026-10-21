@@ -124,7 +124,7 @@ async def test_the_dehumidifier_becomes_a_humidifier_and_its_plain_entities(hass
     assert hass.states.get(entity_id(hass, "binary_sensor", "dhum1-tank_full")).state == STATE_OFF
     assert er.async_get(hass).async_get(entity_id(hass, "sensor", "dhum1-error")).entity_category == "diagnostic"
 
-    device = next(d for d in dr.async_get(hass).devices if (DOMAIN, "dhum1") in d.identifiers)
+    device = next(d for d in all_devices(hass) if (DOMAIN, "dhum1") in d.identifiers)
     assert device.manufacturer == "LG" and device.model == "DHUM_056905_WW"
 
 
@@ -393,8 +393,14 @@ def offers(hass):
     return hass.config_entries.flow.async_progress_by_handler(DOMAIN)
 
 
+def all_devices(hass):
+    # Not `registry.devices`: before 2026.9 iterating it gives ids, from 2026.9 its mapping use is an error.
+    registry = dr.async_get(hass)
+    return [d for e in hass.config_entries.async_entries(DOMAIN) for d in dr.async_entries_for_config_entry(registry, e.entry_id)]
+
+
 def device_ids(hass):
-    return {i[1] for d in dr.async_get(hass).devices for i in d.identifiers if i[0] == DOMAIN}
+    return {i[1] for d in all_devices(hass) for i in d.identifiers if i[0] == DOMAIN}
 
 
 async def test_a_new_device_is_offered_and_not_created(hass, mqtt_mock):
@@ -447,7 +453,7 @@ async def test_deleting_a_device_makes_it_a_new_offer(hass, mqtt_mock):
     entry = await setup(hass, auto_add=False, devices=["dhum1"])
     announce(hass, descriptor("DHUM_056905_WW", "dhum1"))
     await hass.async_block_till_done()
-    (device,) = [d for d in dr.async_get(hass).devices if (DOMAIN, "dhum1") in d.identifiers]
+    (device,) = [d for d in all_devices(hass) if (DOMAIN, "dhum1") in d.identifiers]
 
     assert await async_remove_config_entry_device(hass, entry, device)
     assert entry.options["devices"] == []
@@ -477,7 +483,7 @@ async def test_adding_or_deleting_a_device_leaves_the_other_devices_entities_alo
     assert device_ids(hass) == {"dhum1", "dhum2"}
     entity_id(hass, "humidifier", "dhum2-humidifier")
 
-    (device,) = [d for d in dr.async_get(hass).devices if (DOMAIN, "dhum2") in d.identifiers]
+    (device,) = [d for d in all_devices(hass) if (DOMAIN, "dhum2") in d.identifiers]
     assert await async_remove_config_entry_device(hass, entry, device)
     await hass.async_block_till_done()
     assert entry.options["devices"] == ["dhum1"]
@@ -637,7 +643,7 @@ async def test_a_valve(hass, mqtt_mock):
     assert hass.states.get(vid).state == "closed"
 
 
-async def test_an_event_fires_once_per_message_and_ignores_a_retained_one(hass, mqtt_mock):
+async def test_an_event_fires_once_per_message_and_ignores_a_retained_one(hass, mqtt_mock, freezer):
     await setup(hass)
     async_fire_mqtt_message(hass, "tuya/btn01/button", "click", retain=True)   # before the device is known
     announce(hass, tuya("tuya_button"))
@@ -651,6 +657,7 @@ async def test_an_event_fires_once_per_message_and_ignores_a_retained_one(hass, 
     await hass.async_block_till_done()
     assert hass.states.get(eid).attributes["event_type"] == "double_click"
     first = hass.states.get(eid).state
+    freezer.tick(timedelta(seconds=1))
     async_fire_mqtt_message(hass, "tuya/btn01/button", "double_click")   # the same kind again is another one
     await hass.async_block_till_done()
     assert hass.states.get(eid).state != first
@@ -823,7 +830,7 @@ async def test_each_prefix_is_its_own_entry_with_its_own_devices(hass, mqtt_mock
     await hass.async_block_till_done()
 
     registry = dr.async_get(hass)
-    assert {d.name for d in registry.devices} == {"Dehumidifier", tdoc["label"]}  # no device for a hub itself
+    assert {d.name for d in all_devices(hass)} == {"Dehumidifier", tdoc["label"]}  # no device for a hub itself
     (dhum,) = dr.async_entries_for_config_entry(registry, thinq_entry.entry_id)
     (light,) = dr.async_entries_for_config_entry(registry, tuya_entry.entry_id)
     assert (DOMAIN, "dhum1") in dhum.identifiers and (DOMAIN, tdoc["id"]) in light.identifiers
