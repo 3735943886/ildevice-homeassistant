@@ -10,9 +10,9 @@ from the descriptor alone.
 
 ## Setup
 
-Requires Home Assistant's `mqtt` integration. Install this repository as a custom repository in
-HACS (or copy `custom_components/ildevice`), restart, and add the **IL device** integration. Add
-it again for each topic prefix you use (see [Several hubs](#several-hubs)).
+Requires Home Assistant's `mqtt` integration. Install **IL device** through HACS (or copy
+`custom_components/ildevice`), restart, and add the integration. Add it again for each topic
+prefix you use (see [Several hubs](#several-hubs)).
 
 | option | meaning |
 |---|---|
@@ -180,6 +180,3 @@ python3.14 -m venv .venv
   repository. It looks for a checkout at `../ildevice`, or at `$ILDEVICE`, and is skipped without
   one.
 
-## Not yet
-
-- Moving an existing MQTT-discovery entity onto this integration without losing its history.
