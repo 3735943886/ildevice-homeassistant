@@ -13,8 +13,7 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import HomeAssistant, callback
-
-from .const import (
+from ildevice_ha.const import (
     CONF_ALIASES,
     CONF_AUTO_ADD,
     CONF_DEVICES,
@@ -25,7 +24,7 @@ from .const import (
     MAX_OFFLINE_GRACE,
     with_defaults,
 )
-from .core import parse_aliases
+from ildevice_ha.core import parse_aliases
 
 # Shown in the aliases field description. Passed as a placeholder because hassfest rejects
 # literal braces and angle brackets in strings.json.

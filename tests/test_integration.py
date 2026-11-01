@@ -16,26 +16,26 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
-from custom_components.ildevice.const import DOMAIN, EVENT_COMMAND_REJECTED
+from ildevice_ha.const import DOMAIN, EVENT_COMMAND_REJECTED
 
 
 async def test_platform_registry_matches_the_forwarded_platforms():
-    from custom_components.ildevice.const import PLATFORMS
-    from custom_components.ildevice.entity import ENTITY_CLASSES
+    from ildevice_ha.const import PLATFORMS
+    from ildevice_ha.entity import ENTITY_CLASSES
 
     assert set(PLATFORMS) == set(ENTITY_CLASSES)
 
 
 async def test_embedded_devices_use_the_host_domain_for_creation_and_removal(hass):
-    from custom_components.ildevice.core import (
+    from ildevice_ha.core import (
         parse_descriptor,
         plan_entities,
         resolve_topics,
     )
-    from custom_components.ildevice.core.memory import InProcessTransport
-    from custom_components.ildevice.core.model import Device
-    from custom_components.ildevice.entity import IlSensor
-    from custom_components.ildevice.hub import IlHub
+    from ildevice_ha.core.memory import InProcessTransport
+    from ildevice_ha.core.model import Device
+    from ildevice_ha.entity import IlSensor
+    from ildevice_ha.hub import IlHub
 
     entry = MockConfigEntry(domain="embedded_host")
     entry.add_to_hass(hass)
@@ -895,8 +895,8 @@ async def test_a_null_descriptor_removes_the_device_from_the_registry(hass, mqtt
 def test_every_platform_has_an_entity_class_and_a_module():
     import importlib
 
-    from custom_components.ildevice.const import PLATFORMS
-    from custom_components.ildevice.entity import ENTITY_CLASSES
+    from ildevice_ha.const import PLATFORMS
+    from ildevice_ha.entity import ENTITY_CLASSES
 
     assert sorted(ENTITY_CLASSES) == sorted(PLATFORMS)
     for platform in PLATFORMS:

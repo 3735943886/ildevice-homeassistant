@@ -4,11 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ildevice-homeassistant"
-version = "0.1.1"
-description = "Home Assistant integration that turns IL descriptors into entities"
-requires-python = ">=3.14"
+version = "0.2.0"
+description = "The IL device consumer for Home Assistant: IL descriptors become entities"
+readme = "README.md"
+# Home Assistant 2025.1 (hacs.json) runs on Python 3.12; the tests need a newer one.
+requires-python = ">=3.12"
 license = "MIT"
-dependencies = []   # `custom_components.ildevice.core` needs nothing; the Home Assistant layer needs Home Assistant
+dependencies = []   # `ildevice_ha.core` needs nothing; the Home Assistant layer runs inside Home Assistant
+
+[project.urls]
+Source = "https://github.com/3735943886/ildevice-homeassistant"
 
 [project.optional-dependencies]
 # Pinned: unpinned, pip falls back to whatever release matches the running Python, which can
@@ -21,6 +26,9 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
 
-# The same tree Home Assistant loads (custom_components/ildevice), installable so a host outside Home Assistant can use `core`.
+# The library only: the integration (custom_components/ildevice) is installed by HACS and requires this package.
 [tool.hatch.build.targets.wheel]
-packages = ["custom_components/ildevice"]
+packages = ["ildevice_ha"]
+
+[tool.hatch.build.targets.sdist]
+include = ["ildevice_ha", "README.md", "LICENSE"]

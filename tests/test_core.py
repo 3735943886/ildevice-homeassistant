@@ -3,7 +3,7 @@
 import pytest
 from conftest import load
 
-from custom_components.ildevice.core import (
+from ildevice_ha.core import (
     DescriptorError,
     decode_value,
     encode_command,
@@ -11,9 +11,9 @@ from custom_components.ildevice.core import (
     plan_entities,
     resolve_topics,
 )
-from custom_components.ildevice.core.descriptor import Prop
-from custom_components.ildevice.core.plan import availability_prop
-from custom_components.ildevice.core.topics import set_topic, state_topic
+from ildevice_ha.core.descriptor import Prop
+from ildevice_ha.core.plan import availability_prop
+from ildevice_ha.core.topics import set_topic, state_topic
 
 
 @pytest.mark.parametrize("payload", ["true", "false", '"12"', "null", "[]", "{}", "NaN", "Infinity",
@@ -489,6 +489,6 @@ def test_a_fan_takes_speed_oscillate_and_direction_as_its_own_roles():
     ("other/d1/descriptor", None),
 ])
 def test_descriptor_ids_are_extracted_from_supported_paths_only(topic, expected):
-    from custom_components.ildevice.core.topics import descriptor_id
+    from ildevice_ha.core.topics import descriptor_id
 
     assert descriptor_id(topic, "custom/thinq") == expected

@@ -132,10 +132,11 @@ needs a producer that publishes ildevice descriptors, and in return:
 ## Layout
 
 ```
-custom_components/ildevice/core/  Home Assistant free: descriptor, plan (entities), topics, values,
+ildevice_ha/core/                 Home Assistant free: descriptor, plan (entities), topics, values,
                                   the consumer model, transport interface, in-process broker, icons
-custom_components/ildevice/       the integration: hub (the model's sink), entity classes, platforms,
-                                  config flow, HA mqtt transport, attach
+ildevice_ha/                      the Home Assistant layer: hub (the model's sink), entity classes,
+                                  HA mqtt transport, attach; published to PyPI as `ildevice-homeassistant`
+custom_components/ildevice/       the integration: config flow and platforms, requiring `ildevice-homeassistant`
 tests/                            core and model tests, the ildevice vectors, and the integration
                                   in a test Home Assistant
 ```
@@ -146,10 +147,12 @@ tests/                            core and model tests, the ildevice vectors, an
 
 ### Embedding
 
-Another integration that produces ildevice descriptors in the same process can use this one as its
-consumer instead of going through a broker: `attach.build_hub(hass, options, transport, platform)`
-takes its own transport (for example `core.memory.InProcessTransport`, an in-process broker with
-MQTT's filters and retained messages) and its own domain. It forwards the platforms listed in
+Another integration that produces ildevice descriptors in the same process can use the consumer
+instead of going through a broker. It lists `ildevice-homeassistant` in its manifest
+`requirements` (the same pinned version as this integration's manifest), not this integration in
+`dependencies`, and calls `ildevice_ha.attach.build_hub(hass, options, transport, platform)` with
+its own transport (for example `core.memory.InProcessTransport`, an in-process broker with MQTT's
+filters and retained messages) and its own domain. It forwards the platforms listed in
 `const.PLATFORMS` to its config entry and hands each one's `async_add_entities` to
 `hub.register_platform`.
 

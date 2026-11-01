@@ -2,8 +2,8 @@
 
 import pytest
 
-from custom_components.ildevice.core import parse_descriptor, plan_entities
-from custom_components.ildevice.core.icons import icon_for
+from ildevice_ha.core import parse_descriptor, plan_entities
+from ildevice_ha.core.icons import icon_for
 
 
 @pytest.mark.parametrize("platform,key,unit,icon", [

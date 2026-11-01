@@ -1,15 +1,15 @@
 """IL devices in Home Assistant: any producer that publishes IL descriptors over MQTT
 (rusthinq, rustuya, ...) gets its devices and entities, with no code per model.
 
-Importing this package needs no Home Assistant (`ildevice.core` is usable on its own); Home Assistant is imported
-when the integration is set up. A host that embeds the consumer calls `attach.build_hub`.
+The consumer itself is the `ildevice_ha` package (manifest `requirements`); this integration hosts it with an MQTT
+transport, a config flow and the platforms. Another integration embeds it with `ildevice_ha.attach.build_hub`.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .const import CONF_DEVICES, DOMAIN, PLATFORMS, with_defaults
+from ildevice_ha.const import CONF_DEVICES, DOMAIN, PLATFORMS, with_defaults
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    from .attach import build_hub
+    from ildevice_ha.attach import build_hub
 
     hub = build_hub(hass, entry.options, entry_id=entry.entry_id)
     hub.options = dict(entry.options)

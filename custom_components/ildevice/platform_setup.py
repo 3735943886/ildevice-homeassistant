@@ -6,8 +6,7 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-
-from .const import DOMAIN
+from ildevice_ha.const import DOMAIN
 
 
 def platform_setup(module: str):

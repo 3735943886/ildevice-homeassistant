@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from custom_components.ildevice.core import (
+from ildevice_ha.core import (
     decode_value,
     encode_command,
     parse_descriptor,
     plan_entities,
 )
-from custom_components.ildevice.core.descriptor import Prop
-from custom_components.ildevice.core.topics import (
+from ildevice_ha.core.descriptor import Prop
+from ildevice_ha.core.topics import (
     resolve_topics,
     set_topic,
     state_topic,
