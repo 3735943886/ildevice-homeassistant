@@ -20,7 +20,7 @@ from .icons import icon_for
 class EntitySpec:
     platform: str
     """`climate`, `humidifier`, `fan`, `light`, `cover`, `lock`, `sensor`, `binary_sensor`,
-    `switch`, `number`, `select`, `text`, `button` or `event`."""
+    `switch`, `number`, `select`, `text`, `button`, `event` or `image`."""
     key: str
     """Stable name of the entity within its device (the property name, or the composite's
     platform)."""
@@ -172,6 +172,8 @@ def _plain(prop: Prop, unique_id: str) -> EntitySpec:
             return EntitySpec(platform="text" if rw else "sensor", **common)
         case "event", _:
             return EntitySpec(platform="event", device_class=prop.klass, options=prop.options, **common)
+        case "image", _:
+            return EntitySpec(platform="image", **common)
         case _:  # trigger
             return EntitySpec(platform="button", device_class=prop.klass, **common)
 

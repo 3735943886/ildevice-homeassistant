@@ -23,7 +23,8 @@ class HaMqttTransport:
             if inspect.isawaitable(result):
                 hass.async_create_task(result)
 
-        return await mqtt.async_subscribe(hass, topic, handler, qos=qos)
+        # bytes, not Home Assistant's UTF-8 decoding: an image payload is not text (`values.py` decodes the rest)
+        return await mqtt.async_subscribe(hass, topic, handler, qos=qos, encoding=None)
 
     async def publish(self, topic: str, payload: str | bytes, qos: int = 0, retain: bool = False) -> None:
         await mqtt.async_publish(self.hass, topic, payload, qos=qos, retain=retain)

@@ -4,7 +4,8 @@ name: Release
 # checked against manifest.json so a stray tag can't ship the wrong version, the
 # `ildevice-homeassistant` package goes to PyPI (the manifest requires it, so it must exist before
 # HACS sees the release), and only then is the GitHub release made, with the integration folder
-# attached as a zip for a manual install. PyPI publishing is trusted publishing from the `pypi`
+# attached as a zip for a manual install. A release-candidate tag (v0.2.1rc1) makes a GitHub
+# pre-release, which HACS offers only to those who opt into betas. PyPI publishing is trusted publishing from the `pypi`
 # environment.
 
 on:
@@ -73,4 +74,5 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, 'rc') }}
           files: ildevice.zip

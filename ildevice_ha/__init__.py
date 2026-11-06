@@ -5,4 +5,4 @@ The `ildevice` integration (custom_components/ildevice) is a thin host of this p
 embed it the same way. Importing this package or `core` needs no Home Assistant.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1rc1"

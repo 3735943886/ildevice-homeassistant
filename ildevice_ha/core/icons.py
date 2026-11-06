@@ -167,6 +167,7 @@ _BY_PLATFORM = {
     "text": "mdi:form-textbox",
     "button": "mdi:gesture-tap-button",
     "event": "mdi:gesture-tap",
+    "image": "mdi:image-outline",
 }
 
 _NO_ICON_NEEDED = {None, "enum"}          # a device class other than these brings its own icon

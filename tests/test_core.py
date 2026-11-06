@@ -132,6 +132,24 @@ def test_an_empty_or_unfitting_payload_is_absent():
     assert decode_value(p["power"], b"true") is True
 
 
+def test_an_image_is_bytes_of_its_declared_content_type():
+    desc = parse_descriptor({"id": "v1", "props": {
+        "map": {"type": "image", "rw": True},
+        "photo": {"type": "image", "content_type": "Image/JPEG"},
+        "odd": {"type": "image", "content_type": "text/plain"},
+    }})
+    p = desc.props
+    assert p["map"].content_type == "image/png" and not p["map"].writable   # an image is only read
+    assert p["photo"].content_type == "image/jpeg"
+    assert p["odd"].content_type == "image/png"
+    png = b"\x89PNG\r\n\x1a\n\xff\xfe"                                      # not valid UTF-8
+    assert decode_value(p["map"], png) == png
+    assert decode_value(p["map"], "<svg/>") == b"<svg/>"
+    assert decode_value(p["map"], b"") is None
+    (spec,) = [s for s in plan_entities(desc) if s.key == "map"]
+    assert spec.platform == "image" and spec.icon == "mdi:map-outline"      # from its name
+
+
 def test_commands_are_encoded_in_the_wire_form():
     p = props("DHUM_056905_WW")
     assert encode_command(p["power"], True) == "true"

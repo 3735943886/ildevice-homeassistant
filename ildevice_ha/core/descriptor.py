@@ -6,8 +6,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-# The six value types of the IL. A property of any other type is skipped, not an error.
-TYPES = ("binary", "number", "select", "text", "trigger", "event")
+# The value types of the IL. A property of any other type is skipped, not an error.
+TYPES = ("binary", "number", "select", "text", "trigger", "event", "image")
+DEFAULT_CONTENT_TYPE = "image/png"
 SERIES = ("gauge", "counter")
 CATEGORIES = ("diagnostic", "config")
 
@@ -49,6 +50,7 @@ class Prop:
     klass: str | None = None  # the property's `class`: what kind of value it is
     series: str | None = None  # "gauge" (default) or "counter"
     category: str | None = None  # "diagnostic" | "config" | None
+    content_type: str | None = None  # an image's media type (`image/png`, `image/jpeg`, ...)
     x_mqtt: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -117,6 +119,13 @@ def _requires(value: Any) -> Requires | None:
     return None
 
 
+def _content_type(doc: dict) -> str | None:
+    if doc["type"] != "image":
+        return None
+    value = _opt_str(doc.get("content_type"))
+    return value.lower() if value and value.lower().startswith("image/") else DEFAULT_CONTENT_TYPE
+
+
 def _str_map(value: Any) -> dict[str, str]:
     if not isinstance(value, dict):
         return {}
@@ -130,7 +139,7 @@ def _parse_prop(name: str, doc: Any) -> Prop | None:
     return Prop(
         name=name,
         type=doc["type"],
-        rw=doc.get("rw") is True,
+        rw=doc.get("rw") is True and doc["type"] != "image",  # an image is only read
         role=_opt_str(doc.get("role")),
         requires=_requires(doc.get("requires")),
         group=_opt_str(doc.get("group")),
@@ -143,6 +152,7 @@ def _parse_prop(name: str, doc: Any) -> Prop | None:
         klass=_opt_str(doc.get("class")),
         series=_one_of(doc.get("series"), SERIES),
         category=_one_of(doc.get("category"), CATEGORIES),
+        content_type=_content_type(doc),
         x_mqtt=_str_map(doc.get("x-mqtt")),
     )
 

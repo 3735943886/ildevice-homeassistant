@@ -37,6 +37,7 @@ from homeassistant.components.humidifier import (
     HumidifierEntity,
     HumidifierEntityFeature,
 )
+from homeassistant.components.image import ImageEntity
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
     ATTR_COLOR_TEMP_KELVIN,
@@ -332,6 +333,30 @@ class IlEvent(IlEntity, EventEntity):
         if kind in self._attr_event_types:
             self._trigger_event(kind)
             self.async_write_ha_state()
+
+
+class IlImage(IlEntity, ImageEntity):
+    """The property's latest image; each new one is a new `image_last_updated`, so a dashboard shows it."""
+
+    def __init__(self, hub, dev, spec) -> None:
+        IlEntity.__init__(self, hub, dev, spec)
+        ImageEntity.__init__(self, hub.hass)
+        self._attr_content_type = dev.desc.props[spec.slots[VALUE]].content_type
+        self._image: bytes | None = None
+        self._take(self._v())
+
+    def _take(self, image: bytes | None) -> None:
+        if image is not self._image:
+            self._image = image
+            self._attr_image_last_updated = dt_util.utcnow() if image is not None else None
+
+    @callback
+    def _changed(self) -> None:
+        self._take(self._v())
+        super()._changed()
+
+    async def async_image(self) -> bytes | None:
+        return self._image
 
 
 # ---- composites -----------------------------------------------------------------------
@@ -783,6 +808,7 @@ ENTITY_CLASSES: dict[str, type[IlEntity]] = {
     "event": IlEvent,
     "fan": IlFan,
     "humidifier": IlHumidifier,
+    "image": IlImage,
     "light": IlLight,
     "lock": IlLock,
     "number": IlNumber,

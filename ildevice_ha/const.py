@@ -32,6 +32,7 @@ PLATFORMS = [
     "event",
     "fan",
     "humidifier",
+    "image",
     "light",
     "lock",
     "number",

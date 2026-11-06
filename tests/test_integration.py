@@ -643,6 +643,36 @@ async def test_a_valve(hass, mqtt_mock):
     assert hass.states.get(vid).state == "closed"
 
 
+async def picture(hass, iid):
+    # through the entity, not the http view: hass_client leaves a thread the 2025.1 test plugin refuses
+    entity = hass.data["image"].get_entity(iid)
+    return entity.content_type, await entity.async_image()
+
+
+async def test_an_image_shows_each_new_picture(hass, mqtt_mock, freezer):
+    await setup(hass)
+    announce(hass, {"il": 0, "id": "vac01", "props": {"map": {"type": "image", "label": "Map"}}})
+    await hass.async_block_till_done()
+    iid = entity_id(hass, "image", "vac01-map")
+    assert hass.states.get(iid).state == "unknown"                            # no picture yet
+    first = b"\x89PNG\r\n\x1a\n first \xff"
+    async_fire_mqtt_message(hass, "il/vac01/map", first)
+    await hass.async_block_till_done()
+    state = hass.states.get(iid)
+    shown = state.state
+    assert shown != "unknown"
+    assert state.attributes["entity_picture"].startswith("/api/image_proxy/")
+    assert await picture(hass, iid) == ("image/png", first)
+
+    freezer.tick(timedelta(seconds=1))
+    async_fire_mqtt_message(hass, "il/vac01/map", b"\x89PNG\r\n\x1a\n second")
+    await hass.async_block_till_done()
+    assert hass.states.get(iid).state != shown                                # a new picture is a new update
+    async_fire_mqtt_message(hass, "il/vac01/map", b"", retain=True)           # absent
+    await hass.async_block_till_done()
+    assert hass.states.get(iid).state == "unknown"
+
+
 async def test_an_event_fires_once_per_message_and_ignores_a_retained_one(hass, mqtt_mock, freezer):
     await setup(hass)
     async_fire_mqtt_message(hass, "tuya/btn01/button", "click", retain=True)   # before the device is known

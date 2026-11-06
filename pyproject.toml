@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ildevice-homeassistant"
-version = "0.2.0"
+version = "0.2.1rc1"
 description = "The IL device consumer for Home Assistant: IL descriptors become entities"
 readme = "README.md"
 # Home Assistant 2025.1 (hacs.json) runs on Python 3.12; the tests need a newer one.

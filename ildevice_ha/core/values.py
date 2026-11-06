@@ -18,6 +18,10 @@ def decode_value(prop: Prop, payload: str | bytes | None) -> Any:
     payload) or does not fit the type. Never raises."""
     if payload is None:
         return None
+    if prop.type == "image":
+        # the image itself: bytes, not text (il-mqtt.md section 3)
+        data = payload.encode() if isinstance(payload, str) else bytes(payload)
+        return data or None
     text = payload_text(payload)
     stripped = text.strip()
     if not stripped:

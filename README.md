@@ -64,9 +64,13 @@ it becomes, and the MQTT messages for commands.
   closing. A lock shows `lock_state` (locking, unlocking, jammed, open) when it has one. A lock or valve that is not
   writable stays a plain binary sensor: a role never implies control.
 - Every other property is a plain entity chosen by its type: `sensor` / `binary_sensor` /
-  `switch` / `number` / `select` / `text` / `button` / `event`. `class`, `series` and `category`
+  `switch` / `number` / `select` / `text` / `button` / `event` / `image`. `class`, `series` and `category`
   become `device_class`, `state_class` and `entity_category`; a property with no device class gets
   an icon chosen from its name, unit and kind.
+- An `image` property (a robot vacuum's map, for one) is an `image` entity. Its state topic carries
+  the picture itself as raw bytes, retained, of the descriptor's `content_type` (`image/png` when
+  absent); each message is a new picture, and an empty payload clears it. `image` is not yet a type
+  of the ildevice specification: a consumer that does not know it skips the property.
 - A control whose property has `requires` (a binary that must be true, or a select whose value must
   be in a list) is unavailable, or for one control of a composite refused, until the condition
   holds. A refused command arrives as an `ildevice_command_rejected` event (`device_id`, `prop`,
