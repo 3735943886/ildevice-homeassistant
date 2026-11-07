@@ -8,6 +8,6 @@
   "integration_type": "service",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/3735943886/ildevice-homeassistant/issues",
-  "requirements": ["ildevice-homeassistant==0.2.1rc1"],
-  "version": "0.2.1rc1"
+  "requirements": ["ildevice-homeassistant==0.2.1"],
+  "version": "0.2.1"
 }

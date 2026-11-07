@@ -367,7 +367,13 @@ _SWING_MODES = ["on", "off"]
 
 
 class IlClimate(IlEntity, ClimateEntity):
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    # Climate's native temperature API is new in HA 2026.11. Keep the older
+    # overrides for supported HA releases before that, without exposing them
+    # to newer releases where they trigger deprecation warnings.
+    if hasattr(ClimateEntity, "native_current_temperature"):
+        _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
+    else:
+        _attr_temperature_unit = UnitOfTemperature.CELSIUS
 
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
@@ -401,13 +407,22 @@ class IlClimate(IlEntity, ClimateEntity):
     def hvac_action(self) -> HVACAction | None:
         return _HVAC_ACTIONS.get(self._v("action"))
 
-    @property
-    def current_temperature(self) -> float | None:
-        return self._v("current_temperature")
+    if hasattr(ClimateEntity, "native_current_temperature"):
+        @property
+        def native_current_temperature(self) -> float | None:
+            return self._v("current_temperature")
 
-    @property
-    def target_temperature(self) -> float | None:
-        return self._v("target_temperature")
+        @property
+        def native_target_temperature(self) -> float | None:
+            return self._v("target_temperature")
+    else:
+        @property
+        def current_temperature(self) -> float | None:
+            return self._v("current_temperature")
+
+        @property
+        def target_temperature(self) -> float | None:
+            return self._v("target_temperature")
 
     @property
     def current_humidity(self) -> float | None:
