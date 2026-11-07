@@ -10,7 +10,7 @@ from the descriptor alone.
 
 ## Setup
 
-Requires Home Assistant's `mqtt` integration. Install **IL device** through HACS (or copy
+Requires Home Assistant's `mqtt` integration. Install **IL device** through Marketplace (or copy
 `custom_components/ildevice`), restart, and add the integration. Add it again for each topic
 prefix you use (see [Several hubs](#several-hubs)).
 
