@@ -187,7 +187,7 @@ def test_the_dehumidifier_is_a_humidifier_of_class_dehumidifier():
     h = by_key(specs)["humidifier"]
     assert h.platform == "humidifier" and h.device_class == "dehumidifier"
     assert dict(h.slots) == {"on": "power", "mode": "mode", "target_humidity": "target"}
-    assert (h.min, h.max, h.step) == (30, 70, 1)
+    assert (h.min, h.max, h.step) == (30, 70, 5)
     keys = set(by_key(specs))
     # the fan strength and the measured humidity keep their own entities
     assert {"fan", "humidity", "temperature", "tank_full"} <= keys

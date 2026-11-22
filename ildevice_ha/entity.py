@@ -479,7 +479,7 @@ class IlHumidifier(_Toggle, HumidifierEntity):
         if self._has("mode"):
             self._attr_supported_features = HumidifierEntityFeature.MODES
             self._attr_available_modes = self._options("mode")
-        self._set_known(min_humidity=spec.min, max_humidity=spec.max)
+        self._set_known(min_humidity=spec.min, max_humidity=spec.max, target_humidity_step=spec.step)
 
     @property
     def target_humidity(self) -> float | None:
