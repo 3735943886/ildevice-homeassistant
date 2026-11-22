@@ -112,6 +112,8 @@ async def test_the_dehumidifier_becomes_a_humidifier_and_its_plain_entities(hass
     assert h.attributes["mode"] == "smart"
     assert h.attributes["device_class"] == "dehumidifier"
     assert (h.attributes["min_humidity"], h.attributes["max_humidity"]) == (30, 70)
+    # The descriptor's step reaches the slider (the panel moves in steps of 5).
+    assert h.attributes["target_humidity_step"] == 5
     assert h.attributes["available_modes"] == ["smart", "jet", "silent", "spot", "laundry"]
 
     humidity = hass.states.get(entity_id(hass, "sensor", "dhum1-humidity"))
