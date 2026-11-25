@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping
 from enum import IntFlag, StrEnum
 from typing import Any
@@ -114,6 +115,10 @@ def _with_current(options: Iterable[str], value: Any) -> list[str]:
     return options + [value] if value is not None and value not in options else options
 
 
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
 class IlEntity(Entity):
     _attr_should_poll = False
     _attr_has_entity_name = True
@@ -127,6 +132,9 @@ class IlEntity(Entity):
         desc = dev.desc
         self._attr_unique_id = spec.unique_id
         self._attr_name = spec.name
+        # The embedding integration translates the states under entity.<platform>.<key> (see `_name_internal`
+        # for the name).
+        self._attr_translation_key = spec.key
         if spec.icon:
             self._attr_icon = spec.icon
         self._attr_entity_category = _enum(EntityCategory, spec.entity_category)
@@ -138,6 +146,16 @@ class IlEntity(Entity):
             manufacturer=desc.vendor,
             model=desc.model,
         )
+
+    def _name_internal(self, device_class_name: str | None, platform_translations: dict[str, str]) -> Any:
+        # Drivers label one property differently ("Energy", "Cycle energy"), so a name is translated by the
+        # descriptor's name, entity.<platform>.<slug of the name>.name, and wins over it (Home Assistant would
+        # prefer `_attr_name`). A composite, with no name of its own, keeps the device's.
+        if self.spec.name is not None and (key := self._name_translation_key):
+            prefix = key.removesuffix(f"{self.translation_key}.name")
+            if name := platform_translations.get(f"{prefix}{_slug(self.spec.name)}.name"):
+                return name
+        return super()._name_internal(device_class_name, platform_translations)
 
     def _set_known(self, **attrs: Any) -> None:
         """Set `_attr_<name>` for each attribute the descriptor gives (not None); the rest keep Home Assistant's."""
@@ -319,10 +337,6 @@ class IlEvent(IlEntity, EventEntity):
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
         self._attr_event_types = list(spec.options)
-        # Event types have no other place to get a translated name from: the embedding
-        # integration's translations can name them under entity.event.<property>. The entity's
-        # own name stays the descriptor's (`_attr_name` wins over a translated name).
-        self._attr_translation_key = spec.key
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
