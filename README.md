@@ -71,6 +71,9 @@ it becomes, and the MQTT messages for commands.
   the picture itself as raw bytes, retained, of the descriptor's `content_type` (`image/png` when
   absent); each message is a new picture, and an empty payload clears it. `image` is not yet a type
   of the ildevice specification: a consumer that does not know it skips the property.
+- An `event` entity's translation key is its property name, so an integration embedding the hub
+  can name its event types in `entity.event.<property>.state_attributes.event_type.state`. Its
+  name stays the descriptor's.
 - A control whose property has `requires` (a binary that must be true, or a select whose value must
   be in a list) is unavailable, or for one control of a composite refused, until the condition
   holds. A refused command arrives as an `ildevice_command_rejected` event (`device_id`, `prop`,

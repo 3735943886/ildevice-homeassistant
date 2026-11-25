@@ -698,6 +698,15 @@ async def test_an_event_fires_once_per_message_and_ignores_a_retained_one(hass, 
     assert hass.states.get(eid).attributes["event_type"] == "double_click"
 
 
+async def test_an_event_takes_its_property_as_translation_key_and_keeps_its_name(hass, mqtt_mock):
+    """So an embedding integration can translate the event types; the name is still the descriptor's."""
+    await setup(hass)
+    announce(hass, tuya("tuya_button"))
+    await hass.async_block_till_done()
+    entry = er.async_get(hass).async_get(entity_id(hass, "event", "btn01-button"))
+    assert (entry.translation_key, entry.original_name) == ("button", "Button")
+
+
 # ---- presence, alarm, vacuum, requires on a composite ----------------------------------
 
 GARAGE = {
