@@ -319,6 +319,10 @@ class IlEvent(IlEntity, EventEntity):
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
         self._attr_event_types = list(spec.options)
+        # Event types have no other place to get a translated name from: the embedding
+        # integration's translations can name them under entity.event.<property>. The entity's
+        # own name stays the descriptor's (`_attr_name` wins over a translated name).
+        self._attr_translation_key = spec.key
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
