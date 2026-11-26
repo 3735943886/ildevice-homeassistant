@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping
 from enum import IntFlag, StrEnum
 from typing import Any
@@ -114,6 +115,10 @@ def _with_current(options: Iterable[str], value: Any) -> list[str]:
     return options + [value] if value is not None and value not in options else options
 
 
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
 class IlEntity(Entity):
     _attr_should_poll = False
     _attr_has_entity_name = True
@@ -126,7 +131,13 @@ class IlEntity(Entity):
         self.spec = spec
         desc = dev.desc
         self._attr_unique_id = spec.unique_id
-        self._attr_name = spec.name
+        # Drivers label one property differently ("Energy", "Cycle energy"), so the key is the slug of the name,
+        # not the property: name and states are translated under entity.<platform>.<slug>. A composite, with no
+        # name of its own, keeps the device's name and its platform as key.
+        key = spec.key if spec.name is None else _slug(spec.name)
+        self._attr_translation_key = key
+        if spec.name is None or not hub.translates_name(spec.platform, key):
+            self._attr_name = spec.name
         if spec.icon:
             self._attr_icon = spec.icon
         self._attr_entity_category = _enum(EntityCategory, spec.entity_category)
@@ -319,10 +330,6 @@ class IlEvent(IlEntity, EventEntity):
     def __init__(self, hub, dev, spec) -> None:
         super().__init__(hub, dev, spec)
         self._attr_event_types = list(spec.options)
-        # Event types have no other place to get a translated name from: the embedding
-        # integration's translations can name them under entity.event.<property>. The entity's
-        # own name stays the descriptor's (`_attr_name` wins over a translated name).
-        self._attr_translation_key = spec.key
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()

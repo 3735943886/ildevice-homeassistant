@@ -71,9 +71,14 @@ it becomes, and the MQTT messages for commands.
   the picture itself as raw bytes, retained, of the descriptor's `content_type` (`image/png` when
   absent); each message is a new picture, and an empty payload clears it. `image` is not yet a type
   of the ildevice specification: a consumer that does not know it skips the property.
-- An `event` entity's translation key is its property name, so an integration embedding the hub
-  can name its event types in `entity.event.<property>.state_attributes.event_type.state`. Its
-  name stays the descriptor's.
+- An integration embedding the hub can translate its entities in its own translations. An entity's
+  translation key is the slug of the name the descriptor gives, its label or the property name made
+  readable (`Cycle energy` → `cycle_energy`), since drivers label one property differently; a
+  composite's is its platform. Its name goes in `entity.<platform>.<key>.name`, a select's options or
+  an enum sensor's states in `entity.<platform>.<key>.state`, and an event's types in
+  `entity.event.<key>.state_attributes.event_type.state`. When the integration's English translations
+  name the entity, Home Assistant names it (and makes its entity id) from them; otherwise it keeps the
+  descriptor's name. A composite keeps the device's name.
 - A control whose property has `requires` (a binary that must be true, or a select whose value must
   be in a list) is unavailable, or for one control of a composite refused, until the condition
   holds. A refused command arrives as an `ildevice_command_rejected` event (`device_id`, `prop`,
