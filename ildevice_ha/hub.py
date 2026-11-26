@@ -11,6 +11,7 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import discovery_flow
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import translation
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later
 
@@ -63,6 +64,7 @@ class IlHub:
             allowed=allowed,
         )
         self._adders: dict[str, Callable] = {}
+        self._named: set[str] = set()
         self._pending: defaultdict[str, list] = defaultdict(list)
 
     def _call_later(self, delay: float, fn: Callable[[], None]) -> CALLBACK_TYPE:
@@ -129,9 +131,15 @@ class IlHub:
     async def replacing(self, known: Device) -> None:
         await self._drop_entities(known)
 
+    def translates_name(self, platform: str, key: str) -> bool:
+        """Whether the integration's English translations name entity.<platform>.<key>: Home Assistant then names
+        the entity (and makes its entity id) from them, which it does only when `_attr_name` is not set."""
+        return f"component.{self.platform}.entity.{platform}.{key}.name" in self._named
+
     async def ready(self, dev: Device, known: Device | None) -> None:
         from .entity import ENTITY_CLASSES
 
+        self._named = set(await translation.async_get_translations(self.hass, "en", "entity", [self.platform]))
         # a spec that is gone from the new plan leaves the registry too
         if known is not None:
             kept = {s.unique_id for s in dev.specs}

@@ -710,7 +710,7 @@ async def test_an_event_takes_its_property_as_translation_key_and_keeps_its_name
 
 async def test_a_translated_name_wins_over_the_descriptors_and_a_composite_keeps_the_devices(hass, mqtt_mock):
     """An embedding integration names an entity under entity.<platform>.<slug of its name>.name: drivers label one
-    property differently, so the property name cannot be the key. States stay under the property name."""
+    property differently, so the property name cannot be the key. Its states are under the same key."""
     translations = {
         f"component.{DOMAIN}.entity.select.fan.name": "Lüfter",
         f"component.{DOMAIN}.entity.sensor.internal_temperature_sensor_uncalibrated.name": "Interner Sensor",
@@ -730,10 +730,16 @@ async def test_a_translated_name_wins_over_the_descriptors_and_a_composite_keeps
     registry = er.async_get(hass)
     fan = registry.async_get(entity_id(hass, "select", "dhum1-fan"))
     assert (fan.translation_key, fan.original_name) == ("fan", "Lüfter")
-    assert registry.async_get(entity_id(hass, "sensor", "dhum1-temperature")).original_name == "Interner Sensor"
-    assert registry.async_get(entity_id(hass, "sensor", "dhum1-energy")).original_name == "Energy since driver restart"
+    assert fan.entity_id.endswith("_lufter")   # made from the English translation
+    temperature = registry.async_get(entity_id(hass, "sensor", "dhum1-temperature"))
+    assert (temperature.translation_key, temperature.original_name) == (
+        "internal_temperature_sensor_uncalibrated", "Interner Sensor",
+    )
+    energy = registry.async_get(entity_id(hass, "sensor", "dhum1-energy"))
+    assert (energy.translation_key, energy.original_name) == ("energy_since_driver_restart", "Energy since driver restart")
     assert registry.async_get(entity_id(hass, "switch", "dhum1-bucket_light")).original_name == "Bucket light"
-    assert registry.async_get(entity_id(hass, "humidifier", "dhum1-humidifier")).original_name is None
+    humidifier = registry.async_get(entity_id(hass, "humidifier", "dhum1-humidifier"))
+    assert (humidifier.translation_key, humidifier.original_name) == ("humidifier", None)
 
 
 # ---- presence, alarm, vacuum, requires on a composite ----------------------------------

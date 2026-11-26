@@ -131,10 +131,13 @@ class IlEntity(Entity):
         self.spec = spec
         desc = dev.desc
         self._attr_unique_id = spec.unique_id
-        self._attr_name = spec.name
-        # The embedding integration translates the states under entity.<platform>.<key> (see `_name_internal`
-        # for the name).
-        self._attr_translation_key = spec.key
+        # Drivers label one property differently ("Energy", "Cycle energy"), so the key is the slug of the name,
+        # not the property: name and states are translated under entity.<platform>.<slug>. A composite, with no
+        # name of its own, keeps the device's name and its platform as key.
+        key = spec.key if spec.name is None else _slug(spec.name)
+        self._attr_translation_key = key
+        if spec.name is None or not hub.translates_name(spec.platform, key):
+            self._attr_name = spec.name
         if spec.icon:
             self._attr_icon = spec.icon
         self._attr_entity_category = _enum(EntityCategory, spec.entity_category)
@@ -146,16 +149,6 @@ class IlEntity(Entity):
             manufacturer=desc.vendor,
             model=desc.model,
         )
-
-    def _name_internal(self, device_class_name: str | None, platform_translations: dict[str, str]) -> Any:
-        # Drivers label one property differently ("Energy", "Cycle energy"), so a name is translated by the
-        # descriptor's name, entity.<platform>.<slug of the name>.name, and wins over it (Home Assistant would
-        # prefer `_attr_name`). A composite, with no name of its own, keeps the device's.
-        if self.spec.name is not None and (key := self._name_translation_key):
-            prefix = key.removesuffix(f"{self.translation_key}.name")
-            if name := platform_translations.get(f"{prefix}{_slug(self.spec.name)}.name"):
-                return name
-        return super()._name_internal(device_class_name, platform_translations)
 
     def _set_known(self, **attrs: Any) -> None:
         """Set `_attr_<name>` for each attribute the descriptor gives (not None); the rest keep Home Assistant's."""
